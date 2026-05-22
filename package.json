@@ -1,0 +1,45 @@
+{
+  "name": "tariffmonitor-mcp",
+  "version": "1.0.0",
+  "description": "Tariff Exposure Monitor — live US import tariff calculator MCP server. Looks up any HTS code, returns stacked rate (Section 301 + IEEPA + reciprocal), and projects the November 10, 2026 cliff jump. 19,856 HTS codes. Free, no signup.",
+  "type": "module",
+  "bin": {
+    "tariffmonitor-mcp": "src/index.js"
+  },
+  "main": "src/index.js",
+  "scripts": {
+    "start": "node src/index.js"
+  },
+  "keywords": [
+    "mcp",
+    "model-context-protocol",
+    "tariff",
+    "hts-code",
+    "import-duty",
+    "trade",
+    "section-301",
+    "ieepa",
+    "customs",
+    "ecommerce",
+    "shopify",
+    "amazon",
+    "importer",
+    "claude-desktop",
+    "cursor"
+  ],
+  "author": "Dale Weaver",
+  "license": "MIT",
+  "homepage": "https://scholar.0xpi.com/get/tariffmonitor",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/daleweaver1981/tariffmonitor-mcp"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.29.0"
+  },
+  "files": [
+    "src/",
+    "README.md"
+  ],
+  "mcpName": "io.github.daleweaver1981/tariffmonitor-mcp"
+}
