@@ -14,7 +14,23 @@
 // The tools themselves come from src/tools.js — the same code the stdio server runs, so the two
 // transports cannot drift apart.
 import http from 'node:http';
+import fs from 'node:fs';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { TOOLS, callTool, SERVER_INFO } from './tools.js';
+
+// Read .env ourselves. systemd would do this via EnvironmentFile, but this runs under pm2, which
+// does not — and the first deploy silently kept reporting key_configured:false because of it.
+// Deliberately does NOT override anything already in the environment.
+(() => {
+  try {
+    const envPath = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', '.env');
+    for (const line of fs.readFileSync(envPath, 'utf8').split('\n')) {
+      const m = line.match(/^\s*([A-Z_][A-Z0-9_]*)\s*=\s*(.*)\s*$/);
+      if (m && !process.env[m[1]]) process.env[m[1]] = m[2].replace(/^["']|["']$/g, '');
+    }
+  } catch { /* no .env is a normal state: the server then fails closed, which is intended */ }
+})();
 
 const PORT = Number(process.env.PORT || 8791);
 const HOST = process.env.HOST || '127.0.0.1';
