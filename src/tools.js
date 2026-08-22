@@ -141,7 +141,7 @@ export async function callTool(name, args = {}) {
         explainBlock,
         '',
         `Data source: ${PACK_URL}`,
-        `Full 67-code Survival Kit (pre-computed cliff math): ${BUY_URL}`,
+        `Full pack — 67 HTS codes, rates verified against the current HTS database, $39: ${BUY_URL}`,
       ].join('\n').replace(/\n{3,}/g, '\n\n').trim();
 
       return { content: [{ type: 'text', text }] };
