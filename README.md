@@ -13,23 +13,33 @@ Two tools:
 | `lookup_hts_code` | Search 19,856 HTS codes by description or numeric prefix |
 | `calculate_tariff` | Returns stacked rate (base + Section 301 + IEEPA + reciprocal) + Nov 10 cliff projection. Optional: annual import volume → dollar impact |
 
-Example exchange:
-```
-You: What's the tariff on athletic footwear from China, and how does the cliff change my costs if I import $800k/year?
+Example exchange — a real capture from the live API on 2026-09-11, not a mock-up:
 
-Claude: [uses calculate_tariff with hts_code="6404.11", origin_country="CN", annual_import_value_usd=800000]
-HTS 6404110000 — Footwear with outer soles of rubber/plastics...
+```
+You: What's the tariff on athletic footwear from China, and what does it cost me at $800k/year?
+
+Claude: [calls lookup_hts_code query="athletic footwear", then calculate_tariff
+         hts_code="6404110000", origin_country="CN", annual_import_value_usd=800000]
+
+Note: 6404110000 is not in the schedule. This rate is for heading 640411, resolved to 6404112030.
+
+HTS 6404112030 - For men
+Origin: CN
+
 Rate stack:
-  Base rate (MFN): +20.00%
-  Section 301 (List 4A): +7.50%
-  IEEPA emergency tariff: +145.00%
-Total current rate: 172.50%
-Nov 10, 2026 cliff: 195.00% (+22.50pp jump)
+  MFN base rate: +0.00%
+  Section 301 (China trade enforcement): +7.50%
+Total current rate: 7.50%
+
+No cliff change projected for this code/country combination.
 
 Dollar impact at $800,000/yr import value:
-  Current annual duties: $1,380,000
-  Additional after Nov 10 cliff: $180,000/yr
+  Current annual duties: $60,000
 ```
+
+Rates change, and a rate is per HTS code and origin country - treat the numbers above as the shape
+of the answer, not as a quote for your shipment. The tool never invents a rate: if the upstream is
+unreachable or the code is not in the schedule, it says so instead of estimating.
 
 ## Install (Claude Desktop)
 
