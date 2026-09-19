@@ -11,7 +11,7 @@ Two tools:
 | Tool | What it does |
 |---|---|
 | `lookup_hts_code` | Search 19,856 HTS codes by description or numeric prefix |
-| `calculate_tariff` | Returns stacked rate (base + Section 301 + IEEPA + reciprocal) + Nov 10 cliff projection. Optional: annual import volume → dollar impact |
+| `calculate_tariff` | Returns an estimated stacked rate (MFN base + Section 301 + Section 232) and flags the Nov 10, 2026 Section 301 exclusion expiry. Optional: annual import volume → dollar impact |
 
 Example exchange — a real capture from the live API on 2026-09-11, not a mock-up:
 

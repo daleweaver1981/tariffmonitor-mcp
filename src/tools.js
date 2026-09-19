@@ -82,7 +82,7 @@ export const TOOLS = [
   },
   {
     name: 'calculate_tariff',
-    description: 'Calculate the full stacked US import tariff rate for an HTS code from a specific origin country. Returns: base rate, each additional layer (Section 301, IEEPA, reciprocal), total current rate, and the projected rate after the November 10, 2026 cliff. Optionally computes dollar impact from annual import volume.',
+    description: 'Calculate the full stacked US import tariff rate for an HTS code from a specific origin country. Returns: base rate, each additional layer (Section 301, Section 232), total current rate, and the projected rate after the November 10, 2026 Section 301 exclusion expiry. Figures are estimates; IEEPA tariffs ended 20 Feb 2026 and are not included. Optionally computes dollar impact from annual import volume.',
     inputSchema: {
       type: 'object',
       properties: {

@@ -1,6 +1,6 @@
 ---
 name: us-import-tariff-lookup
-description: Look up what it costs to import a product into the United States - find the HTS code for a product, then get the full stacked duty rate (MFN base + Section 301 + IEEPA + reciprocal) for a specific origin country, the projected November 10 2026 cliff rate, and the dollar impact at a given annual import volume. Use when someone asks about tariffs, duties, HTS or HS codes, customs cost, or how much a trade measure will cost them.
+description: Look up what it costs to import a product into the United States - find the HTS code for a product, then get an estimated stacked duty rate (MFN base + Section 301 + Section 232) for a specific origin country, whether the November 10 2026 Section 301 exclusion expiry affects it, and the dollar impact at a given annual import volume. Use when someone asks about tariffs, duties, HTS or HS codes, customs cost, or how much a trade measure will cost them.
 ---
 
 # US import tariff lookup
