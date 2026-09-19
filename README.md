@@ -80,11 +80,6 @@ The tool calls the free public API at adcreator-ai.com. No signup, no rate limit
 ## Related
 
 - [Free tariff calculator](https://adcreator-ai.com/tariffs/calculator) — browser version
-- [Free sample pack](https://scholar.0xpi.com/get/tariffmonitor) — 5 HTS codes with full cliff math PDF
-- [Tariff Survival Kit ($39)](https://weaverdale5.gumroad.com/l/wmpath) — 67 HTS codes pre-computed + sourcing alternatives + Nov 10 action checklist
-
-## Affiliate program
-
-Earn 35% on every sale. [Sign up here](https://app.gumroad.com/affiliates/products/wmpath).
+- [Official US Harmonized Tariff Schedule](https://hts.usitc.gov/) — the authoritative rates
 
 Built by [Dale Weaver / 0xpi](https://0xpi.com).

@@ -1,6 +1,6 @@
 {
   "name": "tariffmonitor-mcp",
-  "version": "1.2.0",
+  "version": "1.2.1",
   "description": "Tariff Exposure Monitor \u2014 live US import tariff calculator MCP server. Looks up any HTS code, returns an estimated stacked rate (MFN + Section 301 + Section 232) and flags the November 10, 2026 Section 301 exclusion expiry. 19,856 HTS codes. Free, no signup.",
   "type": "module",
   "bin": {

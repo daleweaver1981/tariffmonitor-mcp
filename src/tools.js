@@ -16,9 +16,9 @@
 
 const API_BASE = 'https://adcreator-ai.com/api/tem';
 const PACK_URL = 'https://scholar.0xpi.com/get/tariffmonitor';
-const BUY_URL  = 'https://weaverdale5.gumroad.com/l/wmpath';
+const CALC_URL = 'https://adcreator-ai.com/tariffs/calculator';
 
-export const SERVER_INFO = { name: 'tariffmonitor', version: '1.2.0' };
+export const SERVER_INFO = { name: 'tariffmonitor', version: '1.2.1' };
 
 async function apiFetch(path) {
   const res = await fetch(`${API_BASE}${path}`, {
@@ -194,8 +194,8 @@ export async function callTool(name, args = {}) {
       dollarLines,
       explainBlock,
       '',
-      `Data source: ${PACK_URL}`,
-      `Full pack — 67 HTS codes, rates verified against the current HTS database, $39: ${BUY_URL}`,
+      `Estimate only. Check the authoritative rate at https://hts.usitc.gov/ before relying on it.`,
+      `Free browser calculator: ${CALC_URL}`,
     ].join('\n').replace(/\n{3,}/g, '\n\n').trim();
 
     return { content: [{ type: 'text', text }] };
