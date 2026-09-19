@@ -1,6 +1,9 @@
 ---
 name: us-import-tariff-lookup
 description: Look up what it costs to import a product into the United States - find the HTS code for a product, then get an estimated stacked duty rate (MFN base + Section 301 + Section 232) for a specific origin country, whether the November 10 2026 Section 301 exclusion expiry affects it, and the dollar impact at a given annual import volume. Use when someone asks about tariffs, duties, HTS or HS codes, customs cost, or how much a trade measure will cost them.
+metadata:
+  author: Dale Weaver
+  version: "1.1.0"
 ---
 
 # US import tariff lookup
@@ -12,7 +15,7 @@ Use it when a question turns on what the United States actually charges to impor
 - "What's the tariff on athletic footwear from China?"
 - "We import $2M of aluminium fittings from Vietnam - what are we paying in duty?"
 - "What HTS code covers cotton t-shirts?"
-- "How much worse does the November 2026 cliff make this?"
+- "Does the November 10, 2026 Section 301 exclusion expiry change this?"
 
 Do NOT use it for export duties, for non-US destinations, or for customs valuation, freight or
 brokerage costs. It answers one question: the US import duty rate for an HTS code from a country.
@@ -42,7 +45,7 @@ No API key, no signup. Two tools:
 Normal sequence: `lookup_hts_code` to get a code, confirm the description matches the product with
 the user, then `calculate_tariff`.
 
-## Two things that will bite you
+## Edge cases
 
 Both were measured against the live API on 2026-09-11, and the tool now handles both - but you get
 better answers if you know why.
@@ -55,6 +58,23 @@ better answers if you know why.
    heading and states which code the rate is for. Read that note before quoting the number - the
    rate belongs to the resolved code, not to the one you asked for.
 
+## Examples
+
+Find the code, then price it:
+
+```text
+lookup_hts_code({ "query": "footwear" })
+calculate_tariff({ "hts_code": "6404112030", "origin_country": "CN" })
+```
+
+With an annual import value, to get the yearly duty in dollars:
+
+```text
+calculate_tariff({ "hts_code": "7604", "origin_country": "VN", "annual_import_value_usd": 2000000 })
+```
+
+Quote the rate the tool returns, name the code it resolved to, and say it is an estimate.
+
 ## Honest limits - do not paper over these
 
 - A rate is per HTS code AND origin country. Changing either changes the answer.
@@ -62,8 +82,9 @@ better answers if you know why.
   one specific suffix under it, which may not be the user's exact product. Say so.
 - Duty rate is not landed cost: it excludes freight, insurance, MPF, HMF, brokerage and any
   antidumping or countervailing duty order.
-- The November 10 2026 cliff figure is a projection from currently scheduled measures, not a
-  prediction of policy.
+- The November 10 2026 figure reflects the scheduled expiry of 178 Section 301 exclusions on
+  Chinese goods; it is a projection, not a prediction of policy. IEEPA tariffs ended on
+  20 Feb 2026 and are not part of any rate.
 - Classification is the importer's legal responsibility. This is a lookup, not a customs ruling.
 
 ## If the tool fails
