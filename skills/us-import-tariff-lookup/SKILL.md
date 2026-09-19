@@ -70,7 +70,7 @@ calculate_tariff({ "hts_code": "6404112030", "origin_country": "CN" })
 With an annual import value, to get the yearly duty in dollars:
 
 ```text
-calculate_tariff({ "hts_code": "7604", "origin_country": "VN", "annual_import_value_usd": 2000000 })
+calculate_tariff({ "hts_code": "760429", "origin_country": "VN", "annual_import_value_usd": 2000000 })
 ```
 
 Quote the rate the tool returns, name the code it resolved to, and say it is an estimate.
