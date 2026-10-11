@@ -21,6 +21,8 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { TOOLS, callTool, SERVER_INFO } from './tools.js';
+// Growth funnel (2026-10-11): every tools/call that reaches the tools -> funnel_events step 'activate'.
+import * as funnel from './funnel.js';
 
 // Read .env ourselves. systemd would do this via EnvironmentFile, but this runs under pm2, which
 // does not — and the first deploy silently kept reporting key_configured:false because of it.
@@ -73,6 +75,7 @@ function logCall(req, res, t0, info) {
       ua: String(req.headers['user-agent'] || '').slice(0, 80), status: res.statusCode, ms: Date.now() - t0,
       method: info.method || null, tool: info.tool || null, ids, headerNames: Object.keys(req.headers).filter(h => h !== 'authorization') }) + '\n');
   } catch { /* logging must never break a call */ }
+  if (info.activate) funnel.recordToolCall(req, { tool: info.tool, method: info.method, status: res.statusCode, ms: Date.now() - t0 });
 }
 
 const server = http.createServer(async (req, res) => {
@@ -145,6 +148,7 @@ const server = http.createServer(async (req, res) => {
       return json(res, 200, { jsonrpc: '2.0', id, result: { tools: TOOLS } });
     }
     if (method === 'tools/call') {
+      info.activate = true;
       const name = body?.params?.name;
       if (!name) return rpcError(res, 400, id, -32602, 'Invalid params', 'params.name is required');
       if (!TOOLS.some((t) => t.name === name)) {
@@ -169,6 +173,7 @@ const server = http.createServer(async (req, res) => {
   }
 });
 
+funnel.startJobs();
 server.listen(PORT, HOST, () => {
   console.log(`[mcp-http] tariffmonitor on http://${HOST}:${PORT}/mcp · protocol ${PROTOCOL_VERSION}`
     + ` · tools: ${TOOLS.map((t) => t.name).join(', ')}`
