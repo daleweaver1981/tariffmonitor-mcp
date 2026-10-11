@@ -1,4 +1,7 @@
 #!/usr/bin/env node
+// crash-guard (fleet stability 29 Sep 2026): an unhandled promise rejection must NOT kill the process.
+process.on('unhandledRejection', (reason) => { try { console.error('[unhandledRejection]', (reason && reason.stack) || reason); } catch (e) {} });
+process.on('uncaughtException', (err) => { try { console.error('[uncaughtException]', (err && err.stack) || err); } catch (e) {} setTimeout(() => { process.exit(1); }, 200); });
 // Tariff Exposure Monitor — stateless HTTPS endpoint for Voidnet.
 //
 // Written to Voidnet's publisher contract (docs.openvoidnet.com/docs/publisher-guide/mcp,
@@ -58,7 +61,23 @@ function readBody(req, limit = 1_000_000) {
   });
 }
 
+// 2026-09-18: one JSON line per POST /mcp, so publisher-side calls can be reconciled against Voidnet's
+// Console Usage Logs (Dale's condition 4, Aug 22). Records header NAMES only for x-voidnet-*/request-id-like
+// headers plus their values (never Authorization), the method, tool, status and duration. Append-only file.
+const CALL_LOG = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'calls.jsonl');
+function logCall(req, res, t0, info) {
+  try {
+    const ids = {};
+    for (const [k, v] of Object.entries(req.headers)) if (/^x-voidnet|request-id|^x-vn-|traceparent/i.test(k)) ids[k] = String(v).slice(0, 120);
+    fs.appendFileSync(CALL_LOG, JSON.stringify({ ts: new Date().toISOString(), ip: req.headers['x-forwarded-for'] || req.socket.remoteAddress,
+      ua: String(req.headers['user-agent'] || '').slice(0, 80), status: res.statusCode, ms: Date.now() - t0,
+      method: info.method || null, tool: info.tool || null, ids, headerNames: Object.keys(req.headers).filter(h => h !== 'authorization') }) + '\n');
+  } catch { /* logging must never break a call */ }
+}
+
 const server = http.createServer(async (req, res) => {
+  const t0 = Date.now(); const info = {};
+  if (req.method === 'POST') res.on('finish', () => logCall(req, res, t0, info));
   // Liveness, for our own monitoring only — not part of the Voidnet contract.
   if (req.method === 'GET' && (req.url === '/health' || req.url === '/mcp/health')) {
     return json(res, 200, { ok: true, server: SERVER_INFO, protocol: PROTOCOL_VERSION,
@@ -93,6 +112,7 @@ const server = http.createServer(async (req, res) => {
 
   const id = body?.id ?? null;
   const method = body?.method;
+  info.method = method; info.tool = body?.params?.name;
 
   // 2. Protocol version: the HEADER must be supported, and must MATCH the body's _meta.
   const headerVersion = req.headers['mcp-protocol-version'];
