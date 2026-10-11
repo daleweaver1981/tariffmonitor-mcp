@@ -1,0 +1,70 @@
+{
+  "product": "tariffmonitor-mcp",
+  "conversion_event": "paid tool call via the Voidnet marketplace (Voidnet meters and bills; our proxy step is 'activate' = a tools/call that reached the tools)",
+  "updated": "2026-10-11",
+  "notes": [
+    "The Voidnet listing is Free Only: the public, login-free API https://www.openvoidnet.com/api/marketplace/apps/tariffmonitor reports has_paid_tier=false and stripe_price_id=null (checked 2026-10-11). So a PAID call cannot happen until Dale sets a paid tier, which needs his console login and Stripe Connect. See growth/drafts/voidnet-paid-calls.md.",
+    "Health checks: src/funnel.js checkArrivals(), daily via setInterval inside the tariffmonitor-mcp pm2 process on VM100; results in data/funnel.db arrival_checks. Failures mail Dale through AdCreator's opsAlert and set the arrival to paused.",
+    "The /mcp endpoint is key-gated by design: an unauthenticated POST must return 401. A 200 there would be the failure.",
+    "The listing page HTML is client-rendered (it shows no app text), so the health check reads the public JSON API for the listing's content."
+  ],
+  "arrivals": [
+    {
+      "id": "voidnet-marketplace-listing",
+      "arrival_type": "directory",
+      "campaign": "tariffmonitor-202610-voidnet-listing",
+      "landing_path": "https://www.openvoidnet.com/marketplace/tariffmonitor",
+      "promise": "US import tariff estimates: HTS lookup and stacked rate (MFN + Section 301 + 232). No API key.",
+      "audience": "Developer or AI agent on the Voidnet marketplace that needs US import duty estimates",
+      "primary_cta": "Use the app (buyer key via Voidnet)",
+      "fallback_capture": "none (marketplace-owned page)",
+      "next_step_url": "https://adcreator-ai.com/mcp",
+      "owner": "dale",
+      "status": "live",
+      "health": {
+        "url": "https://www.openvoidnet.com/marketplace/tariffmonitor",
+        "expect_status": 200,
+        "must_contain": [],
+        "next_step_check": {
+          "url": "https://www.openvoidnet.com/api/marketplace/apps/tariffmonitor",
+          "expect_status": 200,
+          "must_contain": [
+            "\"app_name\":\"tariffmonitor\"",
+            "\"server_url\":\"https://adcreator-ai.com/mcp\""
+          ]
+        }
+      },
+      "pricing_seen_2026_10_11": "has_free_tier=true, has_paid_tier=false, stripe_price_id=null (public API /api/marketplace/apps/tariffmonitor)"
+    },
+    {
+      "id": "mcp-endpoint",
+      "arrival_type": "directory",
+      "campaign": "tariffmonitor-202610-mcp-endpoint",
+      "landing_path": "https://adcreator-ai.com/mcp",
+      "promise": "Stateless MCP 2026-07-28 endpoint with lookup_hts_code and calculate_tariff, reached through the Voidnet gateway",
+      "audience": "Voidnet gateway carrying a buyer's call",
+      "primary_cta": "tools/call",
+      "fallback_capture": "none",
+      "next_step_url": null,
+      "owner": "claude-code",
+      "status": "live",
+      "health": {
+        "url": "https://adcreator-ai.com/mcp",
+        "method": "POST",
+        "body": "{}",
+        "expect_status": 401,
+        "must_contain": [
+          "Unauthorized"
+        ],
+        "next_step_check": {
+          "url": "http://127.0.0.1:8791/health",
+          "expect_status": 200,
+          "must_contain": [
+            "\"key_configured\":true",
+            "calculate_tariff"
+          ]
+        }
+      }
+    }
+  ]
+}
