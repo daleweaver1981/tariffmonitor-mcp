@@ -141,7 +141,8 @@ const server = http.createServer(async (req, res) => {
         serverInfo: SERVER_INFO,
         instructions: 'US import tariff data. Call lookup_hts_code first when you only have a '
           + 'product description, then calculate_tariff with the HTS code and an ISO-2 origin '
-          + 'country to get the full stacked rate and the Nov 10 2026 cliff projection.',
+          + 'country to get the full stacked rate (including the 2026 Section 301 forced-labor layer) and the '
+          + 'rate once the Section 301 China exclusions end (11:59 p.m. EDT, 9 Nov 2026, FR Doc. 2025-21671).',
       } });
     }
     if (method === 'tools/list') {
