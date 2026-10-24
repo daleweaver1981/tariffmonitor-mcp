@@ -46,3 +46,42 @@ that reached the tools on `/mcp`. ICP: developers and AI agents handling US impo
   class (voidnet-routed / platform-verify / scanner / internal / direct-client); daily rollup to funnel_daily;
   daily arrival checks to arrival_checks.
 - Decision: keep
+
+### EXP-tariffmonitor-001 update, 2026-10-20 (scout Run 222): the October calls are SETTLED as Voidnet-internal
+- Source: the Voidnet console metering (Published Apps -> tariffmonitor, read-only via the fleet browser session; the
+  console API takes the session, a bare fetch gets 401). 37 metered tools/call records since 27 Sep came from 2 buyer ids:
+  - `7b82034f…` 35 calls (27 Sep -> 19 Oct). Its first session is 27 Sep 04:55Z, which Voidnet confirmed as its own
+    composition check. It also calls our PRP review-checker app in the same minute (e.g. 19 Oct 15:34:29 tariff,
+    15:34:31 PRP), i.e. a platform-side test runner that walks publisher apps.
+  - `841be8d6…` 2 calls on 15 Oct, and the same id made 1 PRP check_reviews call on 1 Oct. Also cross-app.
+- The Run 114 IP trigger (x-voidnet-request-id from a non-HUTCHISON-LK IP) has been firing since 2 Oct only because
+  Voidnet's gateway egress moved to AWS 3.233.165.210. IP no longer discriminates. **New trigger: a metering record
+  whose buyerId is not 7b82034f or 841be8d6** (console only; the buyer id never reaches our server).
+- Console analytics 30 d: 45 MCP requests, 0 paid, $0.00 revenue, 0 active subscriptions. Stripe not connected.
+- Human-attributable activate: 0. Paid: 0. Decision unchanged: iterate is blocked on a paid tier (Dale's call);
+  no further scout work on this listing until a third buyer id appears.
+
+## EXP-tariffmonitor-005: answer quality for agents (compare_origins, product-word lookup, China 301 by line)
+- Date started: 2026-10-24
+- Product / funnel step: activate -> repeat tools/call (an agent that gets a right, usable answer calls again)
+- Arrival id(s): mcp-endpoint, voidnet-marketplace-listing; npm/registry stdio (unmeasured, EXP-002)
+- Evidence before the change (gateway access log, all tariffmonitor-mcp upstream calls since 18 Sep):
+  20 distinct queries, all footwear/bicycle; "running shoes" returned 0 codes. Spot checks: "laptop" 0 codes,
+  "toys" only pet toys, "solar" only solar water heaters. China Section 301 was applied by whole chapter:
+  laptops 8471.30 and smartphones 8517.13 got +25% (on no list in force; List 4B suspended), wooden furniture
+  9403.60 and refrigerators 8418.10 got 0 (both List 3, +25%).
+- Change: (1) adcreator-ai 5c97a15: China 301 per HTS line from HTSUS 2026 Rev. 21 ch. 99 U.S. notes 20 and 31
+  (9,924 codes on Lists 1-4A; four-year-review headings 9903.91.xx with dates; described-product lists shown as
+  may-apply notes only). (2) tariffmonitor-mcp 1.3.0 (c982dc8, npm): new compare_origins tool; ~55 product words
+  mapped to USITC headings; markup stripped. Hosted /mcp on VM100 runs 1.3.0.
+- Hypothesis: if answers are correct and usable for the common product questions, then repeat tools/call per
+  buyer id moves from 0 non-Voidnet buyers to >=1 buyer with >=3 calls in 14 days, because agents re-use tools
+  that return a usable number.
+- Primary metric: count of Voidnet buyer ids other than 7b82034f / 841be8d6 with >=3 metered calls (console).
+- Minimum sample: any third buyer id. Window: 14 days (judge 2026-11-07).
+- Kill criteria: no third buyer id by 7 Nov -> the constraint is distribution, not answer quality; stop
+  feature work and only keep data current.
+- Scale criteria: a third buyer with repeat calls -> add the next most-asked origin/product gaps from its calls.
+- Not done (needs a browser login): MCP registry 1.3.0 (mcp-publisher JWT expired); Voidnet listing
+  description update for the new tool.
+- Result: pending
