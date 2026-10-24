@@ -1,17 +1,17 @@
 {
   "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
   "name": "io.github.daleweaver1981/tariffmonitor-mcp",
-  "description": "US import tariff estimates: HTS lookup and stacked rate (MFN + Section 301 + 232). No API key.",
+  "description": "US import tariffs: HTS lookup, stacked rate (MFN+301+232+2026 forced-labor), compare origins.",
   "repository": {
     "url": "https://github.com/daleweaver1981/tariffmonitor-mcp",
     "source": "github"
   },
-  "version": "1.2.2",
+  "version": "1.3.0",
   "packages": [
     {
       "registryType": "npm",
       "identifier": "tariffmonitor-mcp",
-      "version": "1.2.2",
+      "version": "1.3.0",
       "transport": {
         "type": "stdio"
       }

@@ -10,8 +10,9 @@ Two tools:
 
 | Tool | What it does |
 |---|---|
-| `lookup_hts_code` | Search 19,856 HTS codes by description or numeric prefix |
-| `calculate_tariff` | Returns an estimated stacked rate (MFN base + China Section 301 + Section 232 + the 2026 Section 301 forced-labor tariff on 60 economies), the date the data was checked, each exemption or assumption, and the Section 301 China exclusion end (11:59 p.m. EDT, 9 Nov 2026). Optional: annual import volume → dollar impact |
+| `lookup_hts_code` | Search 19,856 HTS codes by product name or numeric prefix. Everyday words a keyword search misses (laptop, earbuds, toys, solar panels, e-bike, running shoes and ~50 more) map to the official USITC heading that covers them |
+| `calculate_tariff` | Returns an estimated stacked rate (MFN base + China Section 301 by HTS line, Lists 1-4A and the 2024 four-year-review increases + Section 232 + the 2026 Section 301 forced-labor tariff on 60 economies), the date the data was checked, each exemption or assumption, and the Section 301 China exclusion end (11:59 p.m. EDT, 9 Nov 2026). Optional: annual import volume → dollar impact |
+| `compare_origins` | One HTS code, 2-8 origin countries side by side (e.g. CN vs VN vs MX vs IN), lowest rate first, with each layer, the post-9-Nov-2026 rate and optional annual dollar duty. For sourcing and "China plus one" decisions |
 
 Example exchange — a real capture from the live API on 2026-10-24, not a mock-up (the AI-written
 explanation paragraph is left out):
@@ -74,7 +75,7 @@ Add to your `claude_desktop_config.json`:
 }
 ```
 
-Restart Claude Desktop. The `lookup_hts_code` and `calculate_tariff` tools appear automatically.
+Restart Claude Desktop. The `lookup_hts_code`, `calculate_tariff` and `compare_origins` tools appear automatically.
 
 ## Install (Cursor / other MCP clients)
 
