@@ -18,11 +18,11 @@ const API_BASE = 'https://adcreator-ai.com/api/tem';
 const PACK_URL = 'https://scholar.0xpi.com/get/tariffmonitor';
 const CALC_URL = 'https://adcreator-ai.com/tariffs/calculator';
 
-export const SERVER_INFO = { name: 'tariffmonitor', version: '1.2.1' };
+export const SERVER_INFO = { name: 'tariffmonitor', version: '1.2.2' };
 
 async function apiFetch(path) {
   const res = await fetch(`${API_BASE}${path}`, {
-    headers: { 'User-Agent': 'tariffmonitor-mcp/1.2.0' },
+    headers: { 'User-Agent': 'tariffmonitor-mcp/1.2.2' },
   });
   if (!res.ok) throw new Error(`API error ${res.status}`);
   return res.json();
@@ -82,7 +82,7 @@ export const TOOLS = [
   },
   {
     name: 'calculate_tariff',
-    description: 'Calculate the full stacked US import tariff rate for an HTS code from a specific origin country. Returns: base rate, each additional layer (Section 301, Section 232), total current rate, and the projected rate after the November 10, 2026 Section 301 exclusion expiry. Figures are estimates; IEEPA tariffs ended 20 Feb 2026 and are not included. Optionally computes dollar impact from annual import volume.',
+    description: 'Calculate the full stacked US import tariff rate for an HTS code from a specific origin country. Returns: base rate, each additional layer (China Section 301, Section 232, and the 2026 Section 301 forced-labor tariff on 60 economies: 10% or 12.5% by origin, or a 10%/12.5% cap net of MFN for the EU, Taiwan, Japan, South Korea and Switzerland, in effect since 24 Jul 2026, FR Doc. 2026-15181, HTS 9903.05.20-9903.05.84), the total current rate, the date the data was checked, and notes naming each exemption or assumption (Section 232 goods, USMCA- or CAFTA-DR-qualifying entries, listed products). Also states when the Section 301 China product exclusions end: through 11:59 p.m. EDT on November 9, 2026 (FR Doc. 2025-21671). Figures are estimates; IEEPA tariffs ended 20 Feb 2026 and are not included. Optionally computes dollar impact from annual import volume.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -97,7 +97,7 @@ export const TOOLS = [
         },
         annual_import_value_usd: {
           type: 'number',
-          description: 'Optional. Your annual import value in USD. If provided, the response includes the dollar cost of current duties and the additional cost from the Nov 10 cliff.',
+          description: 'Optional. Your annual import value in USD. If provided, the response includes the dollar cost of current duties and any additional cost once the Section 301 China exclusions end (after 11:59 p.m. EDT on November 9, 2026).',
         },
       },
       required: ['hts_code'],
@@ -164,8 +164,8 @@ export async function callTool(name, args = {}) {
     const layers = (d.layers || []).map((l) => `  ${l.label}: +${Number(l.rate).toFixed(2)}%`).join('\n');
     const cliffDelta = (d.cliff_total_rate - d.total_rate).toFixed(2);
     const cliffLine = Number(cliffDelta) > 0
-      ? `\nNov 10, 2026 cliff: ${d.cliff_total_rate.toFixed(2)}% (+${cliffDelta}pp jump)`
-      : '\nNo cliff change projected for this code/country combination.';
+      ? `\nAfter the Section 301 China exclusions end (11:59 p.m. EDT on 9 Nov 2026): ${d.cliff_total_rate.toFixed(2)}% (+${cliffDelta}pp)`
+      : '\nNo rate change projected for this code/country combination when the Section 301 China exclusions end.';
 
     let dollarLines = '';
     if (vol > 0) {
@@ -173,7 +173,7 @@ export async function callTool(name, args = {}) {
       const cliffExtra = Number(cliffDelta) > 0 ? Math.round(Number(cliffDelta) / 100 * vol) : 0;
       dollarLines = `\n\nDollar impact at $${vol.toLocaleString()}/yr import value:`
         + `\n  Current annual duties: $${currentDuty.toLocaleString()}`
-        + (cliffExtra > 0 ? `\n  Additional after Nov 10 cliff: $${cliffExtra.toLocaleString()}/yr` : '');
+        + (cliffExtra > 0 ? `\n  Additional once the exclusions end: $${cliffExtra.toLocaleString()}/yr` : '');
     }
 
     const explainBlock = d.explanation ? `\n\nExplanation: ${d.explanation}` : '';
@@ -186,11 +186,14 @@ export async function callTool(name, args = {}) {
     const text = [
       `${resolvedNote}HTS ${d.hts10} — ${d.description}`,
       `Origin: ${country}`,
+      ...(d.data_as_of ? [`Data checked: ${d.data_as_of}`] : []),
       '',
       'Rate stack:',
       layers,
       `Total current rate: ${d.total_rate.toFixed(2)}%`,
       cliffLine,
+      ...((d.notices || []).map((n) => `\n${n}`)),
+      ...(d.exclusion_expiry ? [`\n${d.exclusion_expiry}`] : []),
       dollarLines,
       explainBlock,
       '',
