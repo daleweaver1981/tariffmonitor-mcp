@@ -14,15 +14,21 @@
 // on another host and is not ours to change for this, so both fallbacks below are client-side —
 // and each one STATES what it did. A silent substitution would be answering a different question.
 
+import { matchAlias } from './aliases.js';
+
 const API_BASE = 'https://adcreator-ai.com/api/tem';
 const PACK_URL = 'https://scholar.0xpi.com/get/tariffmonitor';
 const CALC_URL = 'https://adcreator-ai.com/tariffs/calculator';
+const VERSION = '1.3.0';
 
-export const SERVER_INFO = { name: 'tariffmonitor', version: '1.2.2' };
+export const SERVER_INFO = { name: 'tariffmonitor', version: VERSION };
+
+// The schedule's descriptions carry inline markup such as <il>10 kg</il>; an agent should see text.
+const clean = (t) => String(t || '').replace(/<[^>]+>/g, '');
 
 async function apiFetch(path) {
   const res = await fetch(`${API_BASE}${path}`, {
-    headers: { 'User-Agent': 'tariffmonitor-mcp/1.2.2' },
+    headers: { 'User-Agent': `tariffmonitor-mcp/${VERSION}` },
   });
   if (!res.ok) throw new Error(`API error ${res.status}`);
   return res.json();
@@ -51,13 +57,13 @@ async function searchHts(query) {
 // The schedule holds 10-digit statistical suffixes, not zero-padded headings: 6404110000 does not
 // exist while 640411 does. Walk a not-found code back to its 8- then 6-digit heading rather than
 // telling an importer their product is absent from the US tariff schedule when it is not.
-async function fetchRate(hts, country, vol) {
+async function fetchRate(hts, country, vol, explain = true) {
   const candidates = [hts];
   if (hts.length > 8) candidates.push(hts.slice(0, 8));
   if (hts.length > 6) candidates.push(hts.slice(0, 6));
   let last = null;
   for (const code of candidates) {
-    const qs = `/rate?hts=${encodeURIComponent(code)}&country=${country}&explain=1`
+    const qs = `/rate?hts=${encodeURIComponent(code)}&country=${country}${explain ? '&explain=1' : ''}`
       + `${vol > 0 ? '&unit_cost=0' : ''}&utm_source=tariffmonitor-mcp`;
     last = await apiFetch(qs);
     if (last.ok) return { d: last, requested: hts, used: code };
@@ -68,7 +74,7 @@ async function fetchRate(hts, country, vol) {
 export const TOOLS = [
   {
     name: 'lookup_hts_code',
-    description: 'Search for HTS (Harmonized Tariff Schedule) codes by description or numeric prefix. Returns up to 12 matching codes. Use this before calculate_tariff when you only have a product description. Descriptions are matched as a single phrase, so one keyword ("footwear") matches far more than a phrase ("athletic footwear"); if a phrase matches nothing this tool retries the individual words and tells you which word it used.',
+    description: 'Find the US HTS (Harmonized Tariff Schedule) code for a product, by plain-language product name or numeric prefix, from the official USITC schedule (19,856 10-digit codes). Use this first whenever you have a product name rather than a code (e.g. "laptop", "wireless earbuds", "toys", "solar panels", "e-bike", "running shoes"), then pass a code to calculate_tariff or compare_origins. Everyday shopping words that a plain search of the schedule misses are mapped to the official heading that covers them (e.g. laptop -> 8471.30 "Portable automatic data processing machines"), and the answer names that heading. Otherwise descriptions are matched as one phrase; if a phrase matches nothing the tool retries single words and says which word it used. Returns up to 12 codes.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -82,7 +88,7 @@ export const TOOLS = [
   },
   {
     name: 'calculate_tariff',
-    description: 'Calculate the full stacked US import tariff rate for an HTS code from a specific origin country. Returns: base rate, each additional layer (China Section 301, Section 232, and the 2026 Section 301 forced-labor tariff on 60 economies: 10% or 12.5% by origin, or a 10%/12.5% cap net of MFN for the EU, Taiwan, Japan, South Korea and Switzerland, in effect since 24 Jul 2026, FR Doc. 2026-15181, HTS 9903.05.20-9903.05.84), the total current rate, the date the data was checked, and notes naming each exemption or assumption (Section 232 goods, USMCA- or CAFTA-DR-qualifying entries, listed products). Also states when the Section 301 China product exclusions end: through 11:59 p.m. EDT on November 9, 2026 (FR Doc. 2025-21671). Figures are estimates; IEEPA tariffs ended 20 Feb 2026 and are not included. Optionally computes dollar impact from annual import volume.',
+    description: 'Calculate the full stacked US import tariff rate for an HTS code from a specific origin country. Returns: base rate, each additional layer (China Section 301 matched by HTS line to Lists 1, 2, 3, 4A and the 2024 four-year-review increases, Section 232, and the 2026 Section 301 forced-labor tariff on 60 economies: 10% or 12.5% by origin, or a 10%/12.5% cap net of MFN for the EU, Taiwan, Japan, South Korea and Switzerland, in effect since 24 Jul 2026, FR Doc. 2026-15181, HTS 9903.05.20-9903.05.84), the total current rate, the date the data was checked, and notes naming each exemption or assumption (Section 232 goods, USMCA- or CAFTA-DR-qualifying entries, listed products). Also states when the Section 301 China product exclusions end: through 11:59 p.m. EDT on November 9, 2026 (FR Doc. 2025-21671). Figures are estimates; IEEPA tariffs ended 20 Feb 2026 and are not included. Optionally computes dollar impact from annual import volume.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -103,6 +109,29 @@ export const TOOLS = [
       required: ['hts_code'],
     },
   },
+  {
+    name: 'compare_origins',
+    description: 'Compare the estimated US import tariff for ONE HTS code across several origin countries side by side (e.g. China vs Vietnam vs Mexico vs India), for sourcing and "China plus one" decisions. For each origin returns the total current rate, the layers that make it up (MFN base, Section 301 China, Section 232, 2026 Section 301 forced-labor tariff) and the rate after the Section 301 China exclusions end (11:59 p.m. EDT, 9 Nov 2026), sorted lowest first, with the dollar duty when an annual import value is given. Estimates only; preferential rates (USMCA, FTAs) depend on rules of origin and are not assumed.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        hts_code: {
+          type: 'string',
+          description: 'HTS code, 6 to 10 digits (e.g. "8471.30" or "6404112030"). Use lookup_hts_code first if you only have a product name.',
+        },
+        origin_countries: {
+          type: 'array',
+          items: { type: 'string' },
+          description: 'ISO-2 origin country codes to compare, 2 to 8 of them (e.g. ["CN","VN","MX","IN"]). Default: CN, VN, MX, IN, TH.',
+        },
+        annual_import_value_usd: {
+          type: 'number',
+          description: 'Optional. Annual import value in USD; adds the estimated annual duty for each origin.',
+        },
+      },
+      required: ['hts_code'],
+    },
+  },
 ];
 
 // Returns the MCP content object for a tool call. Never throws for ordinary failures —
@@ -114,19 +143,40 @@ export async function callTool(name, args = {}) {
     if (query.length < 2) {
       return { content: [{ type: 'text', text: 'Query must be at least 2 characters.' }] };
     }
+    // A shopping word ("laptop", "earbuds") either finds nothing in a keyword search or finds
+    // the wrong goods ("toys" -> only pet toys). Search the official heading for it instead, and
+    // say so, so the caller knows the codes come from a mapping and can still check the wording.
+    const alias = /^[0-9.\s]+$/.test(query) ? null : matchAlias(query);
     let found;
+    let aliasData = null;
     try {
+      if (alias) aliasData = await apiFetch('/hts/search?q=' + encodeURIComponent(alias.prefix));
       found = await searchHts(query);
     } catch (e) {
       return { content: [{ type: 'text', text: 'Could not reach Tariff Monitor API: ' + e.message }] };
     }
     const data = found.data;
+    if (aliasData?.ok && aliasData.results?.length) {
+      const rows = aliasData.results.map((r) => `${r.hts10}  ${clean(r.description)}`).join('\n');
+      const aliasCodes = new Set(aliasData.results.map((r) => r.hts10));
+      const extra = (data.ok ? data.results || [] : [])
+        .filter((r) => !aliasCodes.has(r.hts10)).slice(0, 6)
+        .map((r) => `${r.hts10}  ${clean(r.description)}`).join('\n');
+      const text = `"${alias.term}" is normally classified under HTS ${alias.heading}: ${alias.label}${alias.label.endsWith('...') ? '' : '.'} `
+        + 'A plain keyword search of the schedule misses or mislabels this product, so these codes come from that heading.\n\n'
+        + `Codes under ${alias.heading}:\n\n${rows}`
+        + (extra ? `\n\nOther codes whose description contains "${found.searched}":\n\n${extra}` : '')
+        + '\n\nClassification depends on the exact material, construction and use; this heading is a starting point, not a ruling. '
+        + 'Confirm in the official schedule (https://hts.usitc.gov/) or with CBP rulings (https://rulings.cbp.gov/). '
+        + 'Then use calculate_tariff or compare_origins with the most relevant code.';
+      return { content: [{ type: 'text', text }] };
+    }
     if (!data.ok || !data.results?.length) {
       return { content: [{ type: 'text', text: 'No HTS codes found matching "' + query + '"'
         + (query.includes(' ') ? ', and no single word in it matched either' : '')
         + '. Try a broader single keyword, or a numeric HTS prefix such as 6404.' }] };
     }
-    const rows = data.results.map((r) => `${r.hts10}  ${r.description}`).join('\n');
+    const rows = data.results.map((r) => `${r.hts10}  ${clean(r.description)}`).join('\n');
     const note = found.fellBackFrom
       ? `No code description contains the whole phrase "${found.fellBackFrom}", so this is a search for "${found.searched}".\n\n`
       : '';
@@ -184,7 +234,7 @@ export async function callTool(name, args = {}) {
       : '';
 
     const text = [
-      `${resolvedNote}HTS ${d.hts10} — ${d.description}`,
+      `${resolvedNote}HTS ${d.hts10} — ${clean(d.description)}`,
       `Origin: ${country}`,
       ...(d.data_as_of ? [`Data checked: ${d.data_as_of}`] : []),
       '',
@@ -201,6 +251,65 @@ export async function callTool(name, args = {}) {
       `Free browser calculator: ${CALC_URL}`,
     ].join('\n').replace(/\n{3,}/g, '\n\n').trim();
 
+    return { content: [{ type: 'text', text }] };
+  }
+
+  if (name === 'compare_origins') {
+    const hts = String(args.hts_code || '').replace(/[^0-9]/g, '');
+    if (hts.length < 6) {
+      return { content: [{ type: 'text', text: 'hts_code must be at least 6 digits. Use lookup_hts_code to find the right code.' }] };
+    }
+    const raw = Array.isArray(args.origin_countries) && args.origin_countries.length
+      ? args.origin_countries : ['CN', 'VN', 'MX', 'IN', 'TH'];
+    const countries = [...new Set(raw.map((c) => String(c).trim().toUpperCase()))];
+    const bad = countries.filter((c) => !/^[A-Z]{2}$/.test(c));
+    if (bad.length) {
+      return { content: [{ type: 'text', text: `Not ISO-2 country codes: ${bad.join(', ')}. Use codes such as CN, VN, MX, IN, TH, KR, TW, DE, JP.` }] };
+    }
+    if (countries.length < 2 || countries.length > 8) {
+      return { content: [{ type: 'text', text: 'Give 2 to 8 origin countries to compare (ISO-2 codes).' }] };
+    }
+    const vol = Number(args.annual_import_value_usd) || 0;
+
+    let results;
+    try {
+      // explain=false: the per-origin plain-English explanation is slow and not needed for a table.
+      results = await Promise.all(countries.map(async (c) => ({ c, r: await fetchRate(hts, c, vol, false) })));
+    } catch (e) {
+      return { content: [{ type: 'text', text: 'Could not reach Tariff Monitor API: ' + e.message }] };
+    }
+    const okRows = results.filter((x) => x.r.d && x.r.d.ok);
+    if (!okRows.length) {
+      return { content: [{ type: 'text', text: `HTS code ${hts} is not in the current US schedule, and neither is its 8- or 6-digit heading. Use lookup_hts_code to find the right code.` }] };
+    }
+    const first = okRows[0].r;
+    okRows.sort((a, b) => a.r.d.total_rate - b.r.d.total_rate);
+    const lines = okRows.map(({ c, r }) => {
+      const d = r.d;
+      const layers = (d.layers || []).filter((l) => l.type !== 'base' && Number(l.rate) > 0)
+        .map((l) => `${l.label} +${Number(l.rate).toFixed(2)}%`).join('; ');
+      const cliff = Number(d.cliff_total_rate) > Number(d.total_rate)
+        ? ` -> ${Number(d.cliff_total_rate).toFixed(2)}% after 9 Nov 2026` : '';
+      const usd = vol > 0 ? ` | est. duty $${Math.round(d.total_rate / 100 * vol).toLocaleString()}/yr` : '';
+      return `${c}: ${Number(d.total_rate).toFixed(2)}%${cliff}${usd}\n    MFN base ${Number(d.base_rate).toFixed(2)}%${layers ? '; ' + layers : ''}`;
+    });
+    const failed = results.filter((x) => !(x.r.d && x.r.d.ok)).map((x) => x.c);
+    const notices = [...new Set(okRows.flatMap(({ r }) => r.d.notices || []))];
+    const resolvedNote = (first.used && first.used !== first.requested)
+      ? `Note: ${first.requested} is not in the schedule. Rates are for heading ${first.used}, resolved to ${first.d.hts10}.\n\n` : '';
+    const text = [
+      `${resolvedNote}HTS ${first.d.hts10} — ${clean(first.d.description)}`,
+      ...(first.d.data_as_of ? [`Data checked: ${first.d.data_as_of}`] : []),
+      '',
+      'Estimated total US import tariff by origin (lowest first):',
+      ...lines,
+      ...(failed.length ? [`\nNo rate returned for: ${failed.join(', ')}`] : []),
+      ...notices.map((n) => `\n${n}`),
+      ...(first.d.exclusion_expiry ? [`\n${first.d.exclusion_expiry}`] : []),
+      '',
+      'Preferential rates (USMCA, free trade agreements) depend on rules of origin and are not applied here; the origin of goods is where they were substantially transformed, not where they ship from.',
+      'Estimate only. Check the authoritative rate at https://hts.usitc.gov/ before relying on it. For one origin in detail, use calculate_tariff.',
+    ].join('\n').replace(/\n{3,}/g, '\n\n').trim();
     return { content: [{ type: 'text', text }] };
   }
 
