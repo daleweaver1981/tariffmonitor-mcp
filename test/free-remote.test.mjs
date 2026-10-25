@@ -42,7 +42,7 @@ test('initialize negotiates a standard protocol version', async () => {
   assert.equal(r.status, 200);
   const j = await r.json();
   assert.equal(j.result.protocolVersion, '2025-06-18');
-  assert.equal(j.result.serverInfo.version, '1.3.1');
+  assert.equal(j.result.serverInfo.version, '1.3.2');
   assert.equal((await rpc(FREE, '/mcp-free', { jsonrpc: '2.0', method: 'notifications/initialized' })).status, 202);
 });
 
@@ -88,4 +88,14 @@ test('keyed /mcp is unchanged: 401 without key, discover with key', async () => 
   assert.deepEqual((await ok.json()).result.supportedVersions, ['2026-07-28']);
   const init = await rpc(KEYED, '/mcp', { jsonrpc: '2.0', id: 22, method: 'initialize' }, { Authorization: 'Bearer test-key-not-real' });
   assert.equal(init.status, 400);
+});
+
+test("tools/list: every tool has a title and explicit read-only annotations (directory requirement)", async () => {
+  const r = await rpc(FREE, "/mcp-free", { jsonrpc: "2.0", id: 99, method: "tools/list" });
+  const { result } = await r.json();
+  assert.equal(result.tools.length, 3);
+  for (const t of result.tools) {
+    assert.ok(t.title && t.title.length > 3, t.name + " title");
+    assert.deepEqual(t.annotations, { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: true }, t.name);
+  }
 });
