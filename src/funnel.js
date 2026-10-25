@@ -113,12 +113,21 @@ export async function recordToolCall(req, info) {
     const d = await open(); if (!d) return null;
     const ua = String(req.headers['user-agent'] || '').slice(0, 80);
     const rid = String(req.headers['x-voidnet-request-id'] || '').slice(0, 64);
-    const c = classify({ ua, ip: req.headers['x-forwarded-for'] || req.socket.remoteAddress || '', voidnetRequestId: rid, testHeader: String(req.headers['x-fleet-test'] || '') });
+    // 2026-10-25: the keyless public endpoint (/mcp-free) passes info.endpoint='free-remote' and the
+    // client IP the gateway vouched for (info.ip), because its X-Forwarded-For head is client-supplied.
+    // Keyed /mcp calls pass neither and are recorded exactly as before.
+    const free = info.endpoint === 'free-remote';
+    const c = classify({ ua, ip: (free && info.ip) || req.headers['x-forwarded-for'] || req.socket.remoteAddress || '', voidnetRequestId: free ? '' : rid, testHeader: String(req.headers['x-fleet-test'] || '') });
     const id = crypto.randomUUID();
-    d.prepare(`INSERT INTO funnel_events (id, occurred_at, anon_id, step, source, landing_path, arrival_type, is_bot, is_internal, meta)
-               VALUES (?, ?, ?, 'activate', ?, '/mcp', 'directory', ?, ?, ?)`)
-      .run(id, new Date().toISOString(), c.via, c.via, c.is_bot ? 1 : 0, c.is_internal ? 1 : 0,
-        JSON.stringify({ tool: info.tool || null, method: info.method || null, status: info.status, ms: info.ms, ua, request_id: rid || null, cls: c.cls, ip_class: c.ip_class }));
+    const anon = free ? 'free-remote' : c.via;
+    const source = free ? 'free-remote' : c.via;
+    const landing = free ? '/mcp-free' : '/mcp';
+    const campaign = free ? 'tariffmonitor-202610-free-remote' : null;
+    d.prepare(`INSERT INTO funnel_events (id, occurred_at, anon_id, step, source, campaign, landing_path, arrival_type, is_bot, is_internal, meta)
+               VALUES (?, ?, ?, 'activate', ?, ?, ?, 'directory', ?, ?, ?)`)
+      .run(id, new Date().toISOString(), anon, source, campaign, landing, c.is_bot ? 1 : 0, c.is_internal ? 1 : 0,
+        JSON.stringify({ tool: info.tool || null, method: info.method || null, status: info.status, ms: info.ms, ua, request_id: (free ? null : rid) || null, cls: c.cls, ip_class: c.ip_class,
+          ...(free ? { endpoint: 'free-remote', ip_hash: info.ipHash || null } : {}) }));
     return id;
   } catch (e) { console.error('[funnel] record failed:', e.message); return null; }
 }
@@ -146,6 +155,8 @@ export async function summary() {
     direct_clients: q(`SELECT COUNT(*) n FROM funnel_events WHERE step='activate' AND json_extract(meta,'$.cls')='direct-client'`).n,
     bot_or_internal: q(`SELECT COUNT(*) n FROM funnel_events WHERE is_bot=1 OR is_internal=1`).n,
     last_7d_routed: q(`SELECT COUNT(*) n FROM funnel_events WHERE step='activate' AND json_extract(meta,'$.cls')='voidnet-routed' AND occurred_at >= datetime('now','-7 days')`).n,
+    free_remote_total: q(`SELECT COUNT(*) n FROM funnel_events WHERE step='activate' AND source='free-remote'`).n,
+    free_remote_7d_not_bot_not_internal: q(`SELECT COUNT(*) n FROM funnel_events WHERE step='activate' AND source='free-remote' AND is_bot=0 AND is_internal=0 AND occurred_at >= datetime('now','-7 days')`).n,
   };
 }
 

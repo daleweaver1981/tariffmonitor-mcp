@@ -20,7 +20,8 @@ import http from 'node:http';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { TOOLS, callTool, SERVER_INFO } from './tools.js';
+import crypto from 'node:crypto';
+import { TOOLS, callTool, SERVER_INFO, EXCLUSION_END_SHORT } from './tools.js';
 // Growth funnel (2026-10-11): every tools/call that reaches the tools -> funnel_events step 'activate'.
 import * as funnel from './funnel.js';
 
@@ -66,16 +67,18 @@ function readBody(req, limit = 1_000_000) {
 // 2026-09-18: one JSON line per POST /mcp, so publisher-side calls can be reconciled against Voidnet's
 // Console Usage Logs (Dale's condition 4, Aug 22). Records header NAMES only for x-voidnet-*/request-id-like
 // headers plus their values (never Authorization), the method, tool, status and duration. Append-only file.
-const CALL_LOG = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'calls.jsonl');
+const CALL_LOG = process.env.CALL_LOG || path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'calls.jsonl');
 function logCall(req, res, t0, info) {
   try {
     const ids = {};
     for (const [k, v] of Object.entries(req.headers)) if (/^x-voidnet|request-id|^x-vn-|traceparent/i.test(k)) ids[k] = String(v).slice(0, 120);
     fs.appendFileSync(CALL_LOG, JSON.stringify({ ts: new Date().toISOString(), ip: req.headers['x-forwarded-for'] || req.socket.remoteAddress,
       ua: String(req.headers['user-agent'] || '').slice(0, 80), status: res.statusCode, ms: Date.now() - t0,
-      method: info.method || null, tool: info.tool || null, ids, headerNames: Object.keys(req.headers).filter(h => h !== 'authorization') }) + '\n');
+      method: info.method || null, tool: info.tool || null, ids, headerNames: Object.keys(req.headers).filter(h => h !== 'authorization'),
+      ...(info.endpoint ? { endpoint: info.endpoint, client_ip: info.ip || null, client: info.client || null, limited: info.limited || null } : {}) }) + '\n');
   } catch { /* logging must never break a call */ }
-  if (info.activate) funnel.recordToolCall(req, { tool: info.tool, method: info.method, status: res.statusCode, ms: Date.now() - t0 });
+  if (info.activate) funnel.recordToolCall(req, { tool: info.tool, method: info.method, status: res.statusCode, ms: Date.now() - t0,
+    ...(info.endpoint ? { endpoint: info.endpoint, ip: info.ip, ipHash: info.ipHash } : {}) });
 }
 
 const server = http.createServer(async (req, res) => {
@@ -174,7 +177,168 @@ const server = http.createServer(async (req, res) => {
   }
 });
 
+// ── /mcp-free: keyless, rate-limited public endpoint (added 2026-10-25, v1.3.1) ───────────────────
+// Why: the keyed /mcp above answers only the Voidnet gateway, and the npm package runs locally, so an
+// agent browsing the MCP registry could not try the tools without a key or an install. This serves the
+// SAME tools from src/tools.js over standard Streamable HTTP (initialize -> tools/list -> tools/call),
+// stateless (no Mcp-Session-Id), JSON responses.
+//
+// It is a SEPARATE listener (FREE_HOST:FREE_PORT, default 10.0.0.105:8792) so the keyed listener on
+// 127.0.0.1:8791 and its behaviour are untouched. The public route is the VM400 gateway
+// (`location = /mcp-free` on adcreator-ai.com -> 10.0.0.105:8792); ufw lets only the gateway (10.0.0.10, 10.0.0.23) reach it.
+//
+// Limits (tools/call only; initialize/tools/list are free): FREE_PER_IP_DAY per client IP per UTC day
+// (default 25) and FREE_GLOBAL_DAY across all clients (default 500). Over the limit -> HTTP 429 with a
+// JSON-RPC error that names the npm package and the Voidnet listing. Counters persist in
+// data/free-limits.json so a restart does not reset them. The client IP is X-Real-IP, trusted ONLY when
+// the TCP peer is the gateway (its X-Forwarded-For head is client-supplied, so it is never used here).
+const FREE_HOST = process.env.FREE_HOST || '10.0.0.105';
+const FREE_PORT = Number(process.env.FREE_PORT || 8792);
+const FREE_PER_IP_DAY = Number(process.env.FREE_PER_IP_DAY || 25);
+const FREE_GLOBAL_DAY = Number(process.env.FREE_GLOBAL_DAY || 500);
+const FREE_PATH = '/mcp-free';
+const FREE_PUBLIC_URL = 'https://adcreator-ai.com/mcp-free';
+// The VM400 gateway holds 10.0.0.10 and 10.0.0.23 and connects to VM100 from 10.0.0.23 (checked 2026-10-25).
+const TRUSTED_PEERS = new Set(['10.0.0.10', '10.0.0.23', '127.0.0.1', '::1', '::ffff:10.0.0.10', '::ffff:10.0.0.23', '::ffff:127.0.0.1']);
+const UNLIMITED_IP = /^(73\.109\.71\.133|10\.0\.0\.\d+|127\.0\.0\.1|::1)$/; // our egress + LAN: health checks
+const FREE_VERSIONS = ['2025-11-25', '2025-06-18', '2025-03-26', '2024-11-05', PROTOCOL_VERSION];
+const NPM_URL = 'https://www.npmjs.com/package/tariffmonitor-mcp';
+const VOIDNET_URL = 'https://www.openvoidnet.com/marketplace/tariffmonitor';
+const LIMIT_FILE = process.env.FREE_STATE || path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'data', 'free-limits.json');
+
+const utcDay = () => new Date().toISOString().slice(0, 10);
+let limits = { day: utcDay(), global: 0, perIp: {} };
+try { const l = JSON.parse(fs.readFileSync(LIMIT_FILE, 'utf8')); if (l.day === limits.day) limits = l; } catch { /* first run */ }
+const saveLimits = () => { try { fs.mkdirSync(path.dirname(LIMIT_FILE), { recursive: true }); fs.writeFileSync(LIMIT_FILE, JSON.stringify(limits)); } catch {} };
+const ipHash = (ip) => crypto.createHash('sha256').update('tm-free:' + ip).digest('hex').slice(0, 16);
+
+function freeClientIp(req) {
+  const peer = req.socket.remoteAddress || '';
+  const real = String(req.headers['x-real-ip'] || '').trim();
+  if (TRUSTED_PEERS.has(peer)) {
+    if (real) return real;
+    // The gateway always sets X-Real-IP. If it ever stops, do NOT fall back to the gateway's own LAN
+    // address: that would exempt every caller from the limits. One shared bucket instead.
+    if (/10\.0\.0\.(10|23)$/.test(peer)) return 'gateway-without-x-real-ip';
+  }
+  return peer.replace(/^::ffff:/, '');
+}
+
+/** Counts one tools/call. Returns null when allowed, else {scope, limit}. */
+function takeFreeCall(ip) {
+  if (limits.day !== utcDay()) limits = { day: utcDay(), global: 0, perIp: {} };
+  if (UNLIMITED_IP.test(ip)) return null;
+  const h = ipHash(ip); const used = limits.perIp[h] || 0;
+  if (used >= FREE_PER_IP_DAY) return { scope: 'per-ip', limit: FREE_PER_IP_DAY };
+  if (limits.global >= FREE_GLOBAL_DAY) return { scope: 'global', limit: FREE_GLOBAL_DAY };
+  limits.perIp[h] = used + 1; limits.global += 1; saveLimits();
+  return null;
+}
+
+const CORS = {
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Methods': 'POST, GET, OPTIONS',
+  'Access-Control-Allow-Headers': 'Content-Type, Accept, MCP-Protocol-Version, Mcp-Session-Id, Last-Event-ID',
+  'Access-Control-Expose-Headers': 'MCP-Protocol-Version, Retry-After',
+};
+const fjson = (res, status, body, extra = {}) => json(res, status, body, { ...CORS, ...extra });
+const ferr = (res, status, id, code, message, data, extra) =>
+  fjson(res, status, { jsonrpc: '2.0', id: id ?? null, error: { code, message, ...(data ? { data } : {}) } }, extra);
+
+const FREE_INSTRUCTIONS = 'US import tariff data (free public endpoint, ' + FREE_PER_IP_DAY + ' tool calls per IP per day). '
+  + 'Call lookup_hts_code first when you only have a product description, then calculate_tariff with the HTS code and an '
+  + 'ISO-2 origin country for the full stacked rate (MFN + Section 301 + Section 232 + the 2026 Section 301 forced-labor layer), '
+  + 'or compare_origins to compare several origins. Section 301 China exclusions end: ' + EXCLUSION_END_SHORT + '. '
+  + 'Figures are estimates. Unlimited use: run it locally with `npx -y tariffmonitor-mcp` (' + NPM_URL + ').';
+
+const freeServer = http.createServer(async (req, res) => {
+  const t0 = Date.now();
+  const ip = freeClientIp(req);
+  const info = { endpoint: 'free-remote', ip, ipHash: ipHash(ip) };
+  if (req.method === 'POST') res.on('finish', () => logCall(req, res, t0, info));
+  const url = (req.url || '').split('?')[0];
+  if (req.method === 'GET' && url === '/health') {
+    return fjson(res, 200, { ok: true, server: SERVER_INFO, endpoint: FREE_PUBLIC_URL, tools: TOOLS.map((t) => t.name),
+      limits: { per_ip_day: FREE_PER_IP_DAY, global_day: FREE_GLOBAL_DAY }, used_today: { day: limits.day, global: limits.global } });
+  }
+  if (url !== FREE_PATH) return ferr(res, 404, null, -32601, 'Not Found', `The MCP endpoint is POST ${FREE_PUBLIC_URL}`);
+  if (req.method === 'OPTIONS') { res.writeHead(204, CORS); return res.end(); }
+  // Streamable HTTP: a server that offers no SSE stream answers GET with 405.
+  if (req.method !== 'POST') {
+    return ferr(res, 405, null, -32600, 'Method Not Allowed', 'Stateless Streamable HTTP endpoint: use POST.', { Allow: 'POST, OPTIONS' });
+  }
+
+  let body;
+  try { body = JSON.parse(await readBody(req, 65536)); }
+  catch (e) { return ferr(res, 400, null, -32700, 'Parse error', e.message); }
+  if (Array.isArray(body)) return ferr(res, 400, null, -32600, 'Invalid Request', 'JSON-RPC batches are not supported.');
+
+  const id = body?.id;
+  const method = body?.method;
+  info.method = method; info.tool = body?.params?.name;
+  // Notifications (no id) such as notifications/initialized: accepted, no body.
+  if (id === undefined || id === null) { if (typeof method === 'string') { res.writeHead(202, CORS); return res.end(); } }
+  if (typeof method !== 'string') return ferr(res, 400, id, -32600, 'Invalid Request', 'method is required');
+
+  const hv = req.headers['mcp-protocol-version'];
+  if (hv && !FREE_VERSIONS.includes(hv)) {
+    return ferr(res, 400, id, -32600, 'Unsupported protocol version', `Supported: ${FREE_VERSIONS.join(', ')}; received ${hv}`);
+  }
+
+  try {
+    if (method === 'initialize') {
+      const asked = body?.params?.protocolVersion;
+      const ci = body?.params?.clientInfo;
+      info.client = ci ? `${String(ci.name || '').slice(0, 40)}/${String(ci.version || '').slice(0, 20)}` : null;
+      return fjson(res, 200, { jsonrpc: '2.0', id, result: {
+        protocolVersion: FREE_VERSIONS.includes(asked) && asked !== PROTOCOL_VERSION ? asked : FREE_VERSIONS[0],
+        capabilities: { tools: { listChanged: false } },
+        serverInfo: SERVER_INFO,
+        instructions: FREE_INSTRUCTIONS,
+      } });
+    }
+    if (method === 'server/discover') {
+      return fjson(res, 200, { jsonrpc: '2.0', id, result: { supportedVersions: FREE_VERSIONS,
+        capabilities: { tools: { listChanged: false } }, serverInfo: SERVER_INFO, instructions: FREE_INSTRUCTIONS } });
+    }
+    if (method === 'ping') return fjson(res, 200, { jsonrpc: '2.0', id, result: {} });
+    if (method === 'tools/list') return fjson(res, 200, { jsonrpc: '2.0', id, result: { tools: TOOLS } });
+    if (method === 'resources/list') return fjson(res, 200, { jsonrpc: '2.0', id, result: { resources: [] } });
+    if (method === 'resources/templates/list') return fjson(res, 200, { jsonrpc: '2.0', id, result: { resourceTemplates: [] } });
+    if (method === 'prompts/list') return fjson(res, 200, { jsonrpc: '2.0', id, result: { prompts: [] } });
+    if (method === 'tools/call') {
+      const name = body?.params?.name;
+      if (!name) return ferr(res, 400, id, -32602, 'Invalid params', 'params.name is required');
+      if (!TOOLS.some((t) => t.name === name)) return ferr(res, 200, id, -32602, 'Unknown tool', `No tool named "${name}"`);
+      const over = takeFreeCall(ip);
+      if (over) {
+        info.limited = over.scope;
+        const secs = Math.max(60, Math.ceil((Date.parse(utcDay() + 'T00:00:00Z') + 86400e3 - Date.now()) / 1000));
+        const who = over.scope === 'per-ip' ? `${over.limit} tool calls per IP per day` : `its shared daily cap of ${over.limit} tool calls`;
+        return ferr(res, 429, id, -32000,
+          `Rate limit reached: this free public tariffmonitor endpoint allows ${who} (resets 00:00 UTC). `
+          + `For unlimited use, run the same tools locally with \`npx -y tariffmonitor-mcp\` (${NPM_URL}), `
+          + `or use the hosted listing on Voidnet (${VOIDNET_URL}).`,
+          { scope: over.scope, limit: over.limit, retry_after_seconds: secs, npm: NPM_URL, voidnet: VOIDNET_URL },
+          { 'Retry-After': String(secs) });
+      }
+      info.activate = true;
+      const result = await callTool(name, body?.params?.arguments || {});
+      return fjson(res, 200, { jsonrpc: '2.0', id, result });
+    }
+    return ferr(res, 200, id, -32601, 'Method not found', String(method));
+  } catch (e) {
+    console.error('[mcp-free] handler error:', e.message);
+    return ferr(res, 500, id, -32603, 'Internal error', 'Internal error');
+  }
+});
+
 funnel.startJobs();
+freeServer.on('error', (e) => console.error('[mcp-free] listener error (keyed /mcp unaffected):', e.message));
+freeServer.listen(FREE_PORT, FREE_HOST, () => {
+  console.log(`[mcp-free] public keyless endpoint on http://${FREE_HOST}:${FREE_PORT}${FREE_PATH} -> ${FREE_PUBLIC_URL}`
+    + ` · limits ${FREE_PER_IP_DAY}/IP/day, ${FREE_GLOBAL_DAY}/day global`);
+});
 server.listen(PORT, HOST, () => {
   console.log(`[mcp-http] tariffmonitor on http://${HOST}:${PORT}/mcp · protocol ${PROTOCOL_VERSION}`
     + ` · tools: ${TOOLS.map((t) => t.name).join(', ')}`

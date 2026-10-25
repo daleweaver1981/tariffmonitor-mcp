@@ -19,7 +19,16 @@ import { matchAlias } from './aliases.js';
 const API_BASE = 'https://adcreator-ai.com/api/tem';
 const PACK_URL = 'https://scholar.0xpi.com/get/tariffmonitor';
 const CALC_URL = 'https://adcreator-ai.com/tariffs/calculator';
-const VERSION = '1.3.0';
+const VERSION = '1.3.1';
+
+// The Section 301 China product exclusion end date, as the two official sources state it (both read
+// 2026-10-25). They differ by one day, so an agent must see both rather than one silently chosen:
+//   Federal Register, FR Doc. 2025-21671, 90 FR 55232 (1 Dec 2025): "extend the exclusions through
+//     11:59 p.m. eastern daylight time on November 9, 2026".
+//   USTR press release, 26 Nov 2025: "The exclusions have been extended until November 10, 2026."
+// The legal text is the Federal Register notice; the press release is how most coverage reports it.
+export const EXCLUSION_END_SHORT = '11:59 p.m. EDT on 9 Nov 2026 per the Federal Register (FR Doc. 2025-21671); USTR\'s 26 Nov 2025 press release says "until November 10, 2026"';
+const EXCLUSION_END_NOTE = 'Section 301 China product exclusion end, two official wordings: the Federal Register notice (FR Doc. 2025-21671, 90 FR 55232, 1 Dec 2025) extends the exclusions "through 11:59 p.m. eastern daylight time on November 9, 2026"; the USTR press release of 26 Nov 2025 says the 178 exclusions "have been extended until November 10, 2026". The Federal Register text is the legal one. This calculator does not model individual exclusions.';
 
 export const SERVER_INFO = { name: 'tariffmonitor', version: VERSION };
 
@@ -88,7 +97,7 @@ export const TOOLS = [
   },
   {
     name: 'calculate_tariff',
-    description: 'Calculate the full stacked US import tariff rate for an HTS code from a specific origin country. Returns: base rate, each additional layer (China Section 301 matched by HTS line to Lists 1, 2, 3, 4A and the 2024 four-year-review increases, Section 232, and the 2026 Section 301 forced-labor tariff on 60 economies: 10% or 12.5% by origin, or a 10%/12.5% cap net of MFN for the EU, Taiwan, Japan, South Korea and Switzerland, in effect since 24 Jul 2026, FR Doc. 2026-15181, HTS 9903.05.20-9903.05.84), the total current rate, the date the data was checked, and notes naming each exemption or assumption (Section 232 goods, USMCA- or CAFTA-DR-qualifying entries, listed products). Also states when the Section 301 China product exclusions end: through 11:59 p.m. EDT on November 9, 2026 (FR Doc. 2025-21671). Figures are estimates; IEEPA tariffs ended 20 Feb 2026 and are not included. Optionally computes dollar impact from annual import volume.',
+    description: 'Calculate the full stacked US import tariff rate for an HTS code from a specific origin country. Returns: base rate, each additional layer (China Section 301 matched by HTS line to Lists 1, 2, 3, 4A and the 2024 four-year-review increases, Section 232, and the 2026 Section 301 forced-labor tariff on 60 economies: 10% or 12.5% by origin, or a 10%/12.5% cap net of MFN for the EU, Taiwan, Japan, South Korea and Switzerland, in effect since 24 Jul 2026, FR Doc. 2026-15181, HTS 9903.05.20-9903.05.84), the total current rate, the date the data was checked, and notes naming each exemption or assumption (Section 232 goods, USMCA- or CAFTA-DR-qualifying entries, listed products). Also states when the Section 301 China product exclusions end, in both official wordings: through 11:59 p.m. EDT on November 9, 2026 (Federal Register, FR Doc. 2025-21671), which USTR\'s 26 Nov 2025 press release gives as "until November 10, 2026". Figures are estimates; IEEPA tariffs ended 20 Feb 2026 and are not included. Optionally computes dollar impact from annual import volume.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -103,7 +112,7 @@ export const TOOLS = [
         },
         annual_import_value_usd: {
           type: 'number',
-          description: 'Optional. Your annual import value in USD. If provided, the response includes the dollar cost of current duties and any additional cost once the Section 301 China exclusions end (after 11:59 p.m. EDT on November 9, 2026).',
+          description: 'Optional. Your annual import value in USD. If provided, the response includes the dollar cost of current duties and any additional cost once the Section 301 China exclusions end (after 11:59 p.m. EDT on November 9, 2026 per the Federal Register; USTR\'s press release says November 10, 2026).',
         },
       },
       required: ['hts_code'],
@@ -111,7 +120,7 @@ export const TOOLS = [
   },
   {
     name: 'compare_origins',
-    description: 'Compare the estimated US import tariff for ONE HTS code across several origin countries side by side (e.g. China vs Vietnam vs Mexico vs India), for sourcing and "China plus one" decisions. For each origin returns the total current rate, the layers that make it up (MFN base, Section 301 China, Section 232, 2026 Section 301 forced-labor tariff) and the rate after the Section 301 China exclusions end (11:59 p.m. EDT, 9 Nov 2026), sorted lowest first, with the dollar duty when an annual import value is given. Estimates only; preferential rates (USMCA, FTAs) depend on rules of origin and are not assumed.',
+    description: 'Compare the estimated US import tariff for ONE HTS code across several origin countries side by side (e.g. China vs Vietnam vs Mexico vs India), for sourcing and "China plus one" decisions. For each origin returns the total current rate, the layers that make it up (MFN base, Section 301 China, Section 232, 2026 Section 301 forced-labor tariff) and the rate after the Section 301 China exclusions end (through 11:59 p.m. EDT on 9 Nov 2026 per the Federal Register, FR Doc. 2025-21671; USTR\'s press release says until 10 Nov 2026), sorted lowest first, with the dollar duty when an annual import value is given. Estimates only; preferential rates (USMCA, FTAs) depend on rules of origin and are not assumed.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -214,7 +223,7 @@ export async function callTool(name, args = {}) {
     const layers = (d.layers || []).map((l) => `  ${l.label}: +${Number(l.rate).toFixed(2)}%`).join('\n');
     const cliffDelta = (d.cliff_total_rate - d.total_rate).toFixed(2);
     const cliffLine = Number(cliffDelta) > 0
-      ? `\nAfter the Section 301 China exclusions end (11:59 p.m. EDT on 9 Nov 2026): ${d.cliff_total_rate.toFixed(2)}% (+${cliffDelta}pp)`
+      ? `\nAfter the Section 301 China exclusions end (${EXCLUSION_END_SHORT}): ${d.cliff_total_rate.toFixed(2)}% (+${cliffDelta}pp)`
       : '\nNo rate change projected for this code/country combination when the Section 301 China exclusions end.';
 
     let dollarLines = '';
@@ -243,7 +252,7 @@ export async function callTool(name, args = {}) {
       `Total current rate: ${d.total_rate.toFixed(2)}%`,
       cliffLine,
       ...((d.notices || []).map((n) => `\n${n}`)),
-      ...(d.exclusion_expiry ? [`\n${d.exclusion_expiry}`] : []),
+      `\n${EXCLUSION_END_NOTE}`,
       dollarLines,
       explainBlock,
       '',
@@ -289,7 +298,7 @@ export async function callTool(name, args = {}) {
       const layers = (d.layers || []).filter((l) => l.type !== 'base' && Number(l.rate) > 0)
         .map((l) => `${l.label} +${Number(l.rate).toFixed(2)}%`).join('; ');
       const cliff = Number(d.cliff_total_rate) > Number(d.total_rate)
-        ? ` -> ${Number(d.cliff_total_rate).toFixed(2)}% after 9 Nov 2026` : '';
+        ? ` -> ${Number(d.cliff_total_rate).toFixed(2)}% once the exclusions end` : '';
       const usd = vol > 0 ? ` | est. duty $${Math.round(d.total_rate / 100 * vol).toLocaleString()}/yr` : '';
       return `${c}: ${Number(d.total_rate).toFixed(2)}%${cliff}${usd}\n    MFN base ${Number(d.base_rate).toFixed(2)}%${layers ? '; ' + layers : ''}`;
     });
@@ -305,7 +314,7 @@ export async function callTool(name, args = {}) {
       ...lines,
       ...(failed.length ? [`\nNo rate returned for: ${failed.join(', ')}`] : []),
       ...notices.map((n) => `\n${n}`),
-      ...(first.d.exclusion_expiry ? [`\n${first.d.exclusion_expiry}`] : []),
+      `\n${EXCLUSION_END_NOTE}`,
       '',
       'Preferential rates (USMCA, free trade agreements) depend on rules of origin and are not applied here; the origin of goods is where they were substantially transformed, not where they ship from.',
       'Estimate only. Check the authoritative rate at https://hts.usitc.gov/ before relying on it. For one origin in detail, use calculate_tariff.',
