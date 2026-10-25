@@ -1,7 +1,7 @@
 {
   "product": "tariffmonitor-mcp",
   "conversion_event": "paid tool call via the Voidnet marketplace (Voidnet meters and bills; our proxy step is 'activate' = a tools/call that reached the tools)",
-  "updated": "2026-10-11",
+  "updated": "2026-10-25",
   "notes": [
     "The Voidnet listing is Free Only: the public, login-free API https://www.openvoidnet.com/api/marketplace/apps/tariffmonitor reports has_paid_tier=false and stripe_price_id=null (checked 2026-10-11). So a PAID call cannot happen until Dale sets a paid tier, which needs his console login and Stripe Connect. See growth/drafts/voidnet-paid-calls.md.",
     "Health checks: src/funnel.js checkArrivals(), daily via setInterval inside the tariffmonitor-mcp pm2 process on VM100; results in data/funnel.db arrival_checks. Failures mail Dale through AdCreator's opsAlert and set the arrival to paused.",
@@ -62,6 +62,37 @@
           "must_contain": [
             "\"key_configured\":true",
             "calculate_tariff"
+          ]
+        }
+      }
+    },
+    {
+      "id": "mcp-free-remote",
+      "arrival_type": "directory",
+      "campaign": "tariffmonitor-202610-free-remote",
+      "landing_path": "https://adcreator-ai.com/mcp-free",
+      "promise": "Keyless hosted MCP endpoint (Streamable HTTP) with lookup_hts_code, calculate_tariff and compare_origins; 25 tool calls per IP per day",
+      "audience": "Developer or AI agent that finds tariffmonitor-mcp in the official MCP registry (remotes entry) or the README and wants to try it without a key or install",
+      "primary_cta": "tools/call",
+      "fallback_capture": "none (over the limit: JSON-RPC error pointing to npx -y tariffmonitor-mcp and the Voidnet listing)",
+      "next_step_url": "https://www.npmjs.com/package/tariffmonitor-mcp",
+      "owner": "claude-code",
+      "status": "live",
+      "health": {
+        "url": "https://adcreator-ai.com/mcp-free",
+        "method": "POST",
+        "body": "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"tools/list\"}",
+        "expect_status": 200,
+        "must_contain": [
+          "compare_origins",
+          "calculate_tariff",
+          "lookup_hts_code"
+        ],
+        "next_step_check": {
+          "url": "https://registry.npmjs.org/tariffmonitor-mcp",
+          "expect_status": 200,
+          "must_contain": [
+            "\"name\":\"tariffmonitor-mcp\""
           ]
         }
       }

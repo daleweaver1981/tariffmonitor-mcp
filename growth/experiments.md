@@ -85,3 +85,30 @@ that reached the tools on `/mcp`. ICP: developers and AI agents handling US impo
 - Not done (needs a browser login): MCP registry 1.3.0 (mcp-publisher JWT expired); Voidnet listing
   description update for the new tool.
 - Result: pending
+
+## EXP-tariffmonitor-006: keyless public remote (/mcp-free) + registry `remotes` entry
+- Date started: 2026-10-25 (endpoint live; registry 1.3.1 with the remotes entry is STAGED, see growth/drafts/registry-publish-1.3.1.md)
+- Product / funnel step: arrive -> activate (first tools/call without a key or install)
+- Arrival id(s): mcp-free-remote (new); npm/registry stdio stays unmeasured (EXP-002)
+- Why: rivals in the official MCP registry list hosted remote URLs; ours offered only npm stdio (unmeasurable) and a
+  Voidnet-keyed /mcp, so an agent could not try the tools without a key. Paid conversion is still blocked on a Voidnet
+  paid tier (EXP-001), so this measures reach, not revenue.
+- Change: https://adcreator-ai.com/mcp-free (VM400 gateway `location = /mcp-free` -> VM100 10.0.0.105:8792, ufw only
+  from the gateway). Same 1.3.1 tools as /mcp. Standard Streamable HTTP, stateless, JSON responses. Limits: 25
+  tools/call per client IP per UTC day + 500/day global (our egress/LAN exempt); over the limit -> HTTP 429 +
+  JSON-RPC -32000 naming `npx -y tariffmonitor-mcp` and the Voidnet listing. Every POST goes to calls.jsonl with
+  endpoint=free-remote; every tools/call that reaches the tools -> funnel_events step=activate, source=free-remote,
+  landing_path=/mcp-free, with the same classify() bot/scanner/internal flags as /mcp.
+- Hypothesis: if agents can call the tools with no key, then weekly free-remote tools/call from non-Voidnet,
+  non-scanner, non-internal clients moves from 0 (endpoint did not exist) to >=10/week from >=2 distinct ip_hash,
+  because the registry and directories surface a URL that works on first try.
+- Primary metric (bot-filtered): weekly count of funnel_events step=activate, source=free-remote, is_bot=0,
+  is_internal=0 (see funnel.summary() free_remote_7d_not_bot_not_internal).
+- Minimum sample before judging: 14 days after the registry 1.3.1 publish (the remotes entry is the main arrival).
+- Window: 14 days; judge 2026-11-08 (move the date if the registry publish lands later).
+- Kill criteria: <3 qualifying calls in the window -> remote URL is not a distribution lever; keep it up (cost ~0) but
+  stop feature work for it.
+- Scale criteria: >=10/week from >=2 clients -> list the remote in mcpservers.org/Glama entries and add a server card;
+  look at which tools they call and fix the gaps.
+- Watch: daily share of the 500 global cap used (data/free-limits.json); upstream load on adcreator-ai.com/api/tem.
+- Result: pending
