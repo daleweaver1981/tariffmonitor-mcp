@@ -1,6 +1,6 @@
 {
   "name": "tariffmonitor-mcp",
-  "version": "1.3.1",
+  "version": "1.3.2",
   "description": "Tariff Exposure Monitor — live US import tariff calculator MCP server. Looks up any HTS code, returns an estimated stacked rate (MFN + Section 301, including the 2026 forced-labor tariff on 60 economies, + Section 232) and states when the Section 301 China exclusions end (11:59 p.m. EDT, 9 Nov 2026 per the Federal Register; USTR's press release says 10 Nov 2026). 19,856 HTS codes. Free hosted remote (no key, 25 calls/IP/day): https://adcreator-ai.com/mcp-free. New in 1.3: compare_origins (CN vs VN vs MX vs IN side by side) and plain-language product lookup (laptop, earbuds, toys). Free, no signup.",
   "type": "module",
   "bin": {
