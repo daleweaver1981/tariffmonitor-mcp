@@ -1,0 +1,236 @@
+{
+ "about": "Fixed lines the live engine must reproduce. Each total was derived from HTSUS 2026 Rev. 21 chapter 99 (U.S. notes 16, 20/31, 50, 52) and the MFN column; derivation in `why`. Built 2026-10-26 from the scout benchmark of that day. Update a line only with a primary-source reason in `why`.",
+ "lines": [
+  {
+   "hts": "7323930080",
+   "country": "CN",
+   "total": 27,
+   "layers": [
+    "base",
+    "section_232"
+   ],
+   "why": "MFN 2% + 232 derivative steel 25% (note 16(c)(vii) lists 7323.93.00, heading 9903.82.09); forced-labor exempt (52(f)(1)); not on a China 301 list. Benchmark case (old code: 14.5)."
+  },
+  {
+   "hts": "7202111000",
+   "country": "CN",
+   "total": 26.4,
+   "layers": [
+    "base",
+    "section_301"
+   ],
+   "why": "MFN 1.4% + China 301 25%; 7202 is on no note 16 list; forced-labor exempt because note 52(b) (heading 9903.05.86) lists 7202.11.10. The scout's 38.9% added forced-labor 12.5%, which the note excludes. Benchmark case (old code: 26.4 by luck, 232 not listed)."
+  },
+  {
+   "hts": "7615102015",
+   "country": "CN",
+   "total": 28.1,
+   "layers": [
+    "base",
+    "section_232"
+   ],
+   "why": "MFN 3.1% + 232 derivative aluminum 25% (note 16(c)(vi) lists 7615.10.2015); forced-labor exempt. Benchmark case (old code: 53.1, chapter rule 50%)."
+  },
+  {
+   "hts": "8418100010",
+   "country": "CN",
+   "total": 50,
+   "layers": [
+    "base",
+    "section_301",
+    "section_232"
+   ],
+   "why": "MFN free + China 301 25% + 232 derivative 25% (8418.10.00 in note 16(c)(vi) and (vii), heading 9903.82.09). Benchmark case (old code: no 232)."
+  },
+  {
+   "hts": "8418100010",
+   "country": "VN",
+   "total": 25,
+   "layers": [
+    "base",
+    "section_232"
+   ],
+   "why": "232 derivative 25%; forced-labor exempt (52(f)(1))."
+  },
+  {
+   "hts": "6109100012",
+   "country": "BR",
+   "total": 54,
+   "layers": [
+    "base",
+    "section_301_brazil",
+    "section_301_forced_labor"
+   ],
+   "why": "MFN 16.5% + Brazil 301 25% (9903.05.01, from 22 Jul 2026) + forced-labor 12.5%. Benchmark case (old code: 29)."
+  },
+  {
+   "hts": "7615102015",
+   "country": "BR",
+   "total": 28.1,
+   "layers": [
+    "base",
+    "section_232"
+   ],
+   "why": "232 goods are exempt from Brazil 301 (note 50(a)(vi), 9903.05.07) and forced-labor (52(f)(1))."
+  },
+  {
+   "hts": "0901110015",
+   "country": "BR",
+   "total": 0,
+   "layers": [
+    "base"
+   ],
+   "why": "Coffee: Brazil 301 exempt (note 50(a)(ii), 9903.05.03); forced-labor exempt (52(b)); MFN free."
+  },
+  {
+   "hts": "8507600090",
+   "country": "CN",
+   "total": 40.9,
+   "layers": [
+    "base",
+    "section_301",
+    "section_232_review",
+    "section_301_forced_labor"
+   ],
+   "why": "Confirmed correct 26 Oct: MFN 3.4% + 301 25% + forced-labor 12.5%. 8507.60 is named in note 33 (auto parts 232), flagged as may apply, not computed."
+  },
+  {
+   "hts": "6109100012",
+   "country": "CN",
+   "total": 36.5,
+   "layers": [
+    "base",
+    "section_301",
+    "section_301_forced_labor"
+   ],
+   "why": "Confirmed correct: MFN 16.5% + List 4A 7.5% + forced-labor 12.5%."
+  },
+  {
+   "hts": "9617001000",
+   "country": "CN",
+   "total": 19.7,
+   "layers": [
+    "base",
+    "section_301_forced_labor"
+   ],
+   "why": "Confirmed correct: MFN 7.2% + forced-labor 12.5%."
+  },
+  {
+   "hts": "6404112030",
+   "country": "CN",
+   "total": 30.5,
+   "layers": [
+    "base",
+    "section_301",
+    "section_301_forced_labor"
+   ],
+   "why": "README example: MFN 10.5% + 7.5% + 12.5%."
+  },
+  {
+   "hts": "6109100012",
+   "country": "VN",
+   "total": 29,
+   "layers": [
+    "base",
+    "section_301_forced_labor"
+   ],
+   "why": "MFN 16.5% + forced-labor Vietnam 12.5% (9903.05.84)."
+  },
+  {
+   "hts": "7208101500",
+   "country": "CN",
+   "total": 75,
+   "layers": [
+    "base",
+    "section_301",
+    "section_232"
+   ],
+   "why": "Steel article (note 16(c)(iii) heading 7208): 232 50% + China 301 25%; MFN free."
+  },
+  {
+   "hts": "7208101500",
+   "country": "GB",
+   "total": 25,
+   "layers": [
+    "base",
+    "section_232"
+   ],
+   "why": "UK steel 25% (9903.82.04, note 16(d), assumes 95% UK-melted)."
+  },
+  {
+   "hts": "7323930080",
+   "country": "GB",
+   "total": 17,
+   "layers": [
+    "base",
+    "section_232"
+   ],
+   "why": "UK derivative 15% (9903.82.05) + MFN 2%."
+  },
+  {
+   "hts": "7616995160",
+   "country": "CN",
+   "total": 77.5,
+   "layers": [
+    "base",
+    "section_301",
+    "section_232"
+   ],
+   "why": "Aluminum article (note 16(c)(i) 7616.99.5160): 50% + 301 25% + MFN 2.5%."
+  },
+  {
+   "hts": "8424899000",
+   "country": "DE",
+   "total": 15,
+   "layers": [
+    "base",
+    "section_232"
+   ],
+   "why": "Note 16(c)(ix)/(x): MFN + additional = 15% (9903.82.10); MFN 1.8% so +13.2%. Forced-labor exempt."
+  },
+  {
+   "hts": "6109100012",
+   "country": "CA",
+   "total": 26.5,
+   "layers": [
+    "base",
+    "section_301_forced_labor"
+   ],
+   "notice": "Section 338",
+   "why": "MFN 16.5% + forced-labor Canada 10%; Section 338 verify note (annex lists are images)."
+  },
+  {
+   "hts": "7306301010",
+   "country": "RU",
+   "total": 12.5,
+   "layers": [
+    "base",
+    "section_232_review",
+    "section_301_forced_labor"
+   ],
+   "why": "Russian steel: headings 9903.82.14-.17 / 9903.85.67-.68 not modeled, returned as needs review."
+  },
+  {
+   "hts": "8471300100",
+   "country": "CN",
+   "total": 0,
+   "layers": [
+    "base"
+   ],
+   "why": "Laptops: MFN free, on no China 301 list in force, forced-labor exempt (52(b)), on no 232 list."
+  },
+  {
+   "hts": "8806210000",
+   "country": "CN",
+   "total": 37.5,
+   "layers": [
+    "base",
+    "section_301",
+    "section_232_review",
+    "section_301_forced_labor"
+   ],
+   "notice": "unmanned aircraft",
+   "why": "Drone: MFN free + List 1 25% + forced-labor 12.5%; Section 232 UAS (FR Doc. 2026-16979, 100%/25% from 3 Sep 2026) flagged, annex lists are images."
+  }
+ ]
+}

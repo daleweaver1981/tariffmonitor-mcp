@@ -12,12 +12,11 @@ Three tools:
 
 | Tool | What it does |
 |---|---|
-| `lookup_hts_code` | Search 19,856 HTS codes by product name or numeric prefix. Everyday words a keyword search misses (laptop, earbuds, toys, solar panels, e-bike, running shoes and ~50 more) map to the official USITC heading that covers them |
-| `calculate_tariff` | Returns an estimated stacked rate (MFN base + China Section 301 by HTS line, Lists 1-4A and the 2024 four-year-review increases + Section 232 + the 2026 Section 301 forced-labor tariff on 60 economies), the date the data was checked, each exemption or assumption, and the Section 301 China exclusion end (11:59 p.m. EDT, 9 Nov 2026 per the Federal Register; 10 Nov 2026 in USTR's press release). Optional: annual import volume → dollar impact |
+| `lookup_hts_code` | Search 19,856 HTS codes by product name or numeric prefix. Everyday words a keyword search misses (laptop, t-shirt, water bottle, earbuds, toys, e-bike, running shoes and ~90 more) map to the official USITC heading(s) that cover them, with the 10-digit lines ranked by match |
+| `calculate_tariff` | Returns an estimated stacked rate (MFN base + China Section 301 by HTS line, Lists 1-4A and the 2024 four-year-review increases + Section 232 steel/aluminum/copper matched by HTS line to the chapter 99 U.S. note 16 lists + Section 301 Brazil + the 2026 Section 301 forced-labor tariff on 60 economies; other Section 232 programs flagged as needs review), the date the data was checked, each exemption or assumption, and the Section 301 China exclusion end (11:59 p.m. EDT, 9 Nov 2026 per the Federal Register; 10 Nov 2026 in USTR's press release). Optional: annual import volume → dollar impact |
 | `compare_origins` | One HTS code, 2-8 origin countries side by side (e.g. CN vs VN vs MX vs IN), lowest rate first, with each layer, the post-9-Nov-2026 rate and optional annual dollar duty. For sourcing and "China plus one" decisions |
 
-Example exchange — a real capture from the live API on 2026-10-24, not a mock-up (the AI-written
-explanation paragraph is left out):
+Example exchange: a real capture from the live hosted endpoint (/mcp-free) on 2026-10-26, not a mock-up:
 
 ```
 You: What's the tariff on athletic footwear from China, and what does it cost me at $800k/year?
@@ -27,28 +26,26 @@ Claude: [calls lookup_hts_code query="athletic footwear", then calculate_tariff
 
 Note: 6404110000 is not in the schedule. This rate is for heading 640411, resolved to 6404112030.
 
-HTS 6404112030 - For men
+HTS 6404112030 — For men
 Origin: CN
 Data checked: 2026-10-24
 
 Rate stack:
-  MFN base rate: +0.00%
-  Section 301 (China trade enforcement): +7.50%
+  MFN base rate (10.5%): +10.50%
+  Section 301 China, List 4A (heading 9903.88.15): +7.50%
   Section 301 forced-labor tariff (2026): +12.50%
-Total current rate: 20.00%
+Total current rate: 30.50%
 
 No rate change projected for this code/country combination when the Section 301 China exclusions end.
 
-The MFN base rate for this code is missing from our data and is counted as 0, so the total may be understated. Check the general rate at https://hts.usitc.gov/.
+Section 301 forced-labor tariff (FR Doc. 2026-15181; data checked 2026-10-24): included (+12.5%). China: +12.5%, heading 9903.05.31. Stacks on other Section 301 duties.
 
-Section 301 forced-labor tariff (FR Doc. 2026-15181; data checked 2026-10-24): included. China: +12.5%, heading 9903.05.31. Stacks on other Section 301 duties.
+Section 232 steel, aluminum and copper coverage is checked by HTS line (U.S. note 16(c)); the other Section 232 programs (vehicles and parts, wood products, trucks, semiconductors) are flagged when the line is named in their notes. Goods subject to any of them are exempt from this layer (U.S. note 52(f)).
 
-Assumption: the good is not covered by a Section 232 action (exempt under U.S. note 52(f)); this calculator only detects Section 232 steel, aluminum and copper by chapter.
-
-Section 301 China product exclusions are extended "through 11:59 p.m. eastern daylight time on November 9, 2026" (Federal Register, FR Doc. 2025-21671, 90 FR 55232, 1 Dec 2025). USTR's press release of 26 Nov 2025 says the 178 exclusions "have been extended until November 10, 2026". The Federal Register text is the legal one. This calculator does not model individual exclusions.
+Section 301 China product exclusion end, two official wordings: the Federal Register notice (FR Doc. 2025-21671, 90 FR 55232, 1 Dec 2025) extends the exclusions "through 11:59 p.m. eastern daylight time on November 9, 2026"; the USTR press release of 26 Nov 2025 says the 178 exclusions "have been extended until November 10, 2026". The Federal Register text is the legal one. This calculator does not model individual exclusions.
 
 Dollar impact at $800,000/yr import value:
-  Current annual duties: $160,000
+  Current annual duties: $244,000
 ```
 
 The Section 301 forced-labor layer (USTR, 60 economies, entries from 12:01 a.m. ET on 24 Jul 2026,

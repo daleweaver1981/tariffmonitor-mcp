@@ -42,7 +42,7 @@ test('initialize negotiates a standard protocol version', async () => {
   assert.equal(r.status, 200);
   const j = await r.json();
   assert.equal(j.result.protocolVersion, '2025-06-18');
-  assert.equal(j.result.serverInfo.version, '1.3.2');
+  assert.equal(j.result.serverInfo.version, '1.4.0');
   assert.equal((await rpc(FREE, '/mcp-free', { jsonrpc: '2.0', method: 'notifications/initialized' })).status, 202);
 });
 

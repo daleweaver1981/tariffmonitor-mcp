@@ -19,7 +19,7 @@ import { matchAlias } from './aliases.js';
 const API_BASE = 'https://adcreator-ai.com/api/tem';
 const PACK_URL = 'https://scholar.0xpi.com/get/tariffmonitor';
 const CALC_URL = 'https://adcreator-ai.com/tariffs/calculator';
-const VERSION = '1.3.2';
+const VERSION = '1.4.0';
 
 // The Section 301 China product exclusion end date, as the two official sources state it (both read
 // 2026-10-25). They differ by one day, so an agent must see both rather than one silently chosen:
@@ -85,7 +85,7 @@ export const TOOLS = [
     name: 'lookup_hts_code',
     title: 'Look up HTS code',
     annotations: { title: 'Look up HTS code', readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: true },
-    description: 'Find the US HTS (Harmonized Tariff Schedule) code for a product, by plain-language product name or numeric prefix, from the official USITC schedule (19,856 10-digit codes). Use this first whenever you have a product name rather than a code (e.g. "laptop", "wireless earbuds", "toys", "solar panels", "e-bike", "running shoes"), then pass a code to calculate_tariff or compare_origins. Everyday shopping words that a plain search of the schedule misses are mapped to the official heading that covers them (e.g. laptop -> 8471.30 "Portable automatic data processing machines"), and the answer names that heading. Otherwise descriptions are matched as one phrase; if a phrase matches nothing the tool retries single words and says which word it used. Returns up to 12 codes.',
+    description: 'Find the US HTS (Harmonized Tariff Schedule) code for a product, by plain-language product name or numeric prefix, from the official USITC schedule (19,856 10-digit codes). Use this first whenever you have a product name rather than a code (e.g. "laptop", "t-shirt", "water bottle", "wireless earbuds", "toys", "e-bike", "running shoes"), then pass a code to calculate_tariff or compare_origins. Everyday shopping words that a plain search of the schedule misses are mapped to the official heading that covers them (e.g. laptop -> 8471.30 "Portable automatic data processing machines"), and the answer names that heading; when a word commonly falls under more than one heading (water bottle: 7323.93 stainless, 9617.00 vacuum flasks, 3924.10 plastic) each is listed, with the 10-digit lines ranked by match to the query. Otherwise descriptions are matched as one phrase; if a phrase matches nothing the tool retries single words and says which word it used. Returns up to 12 codes.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -101,7 +101,7 @@ export const TOOLS = [
     name: 'calculate_tariff',
     title: 'Calculate US import tariff',
     annotations: { title: 'Calculate US import tariff', readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: true },
-    description: 'Calculate the full stacked US import tariff rate for an HTS code from a specific origin country. Returns: base rate, each additional layer (China Section 301 matched by HTS line to Lists 1, 2, 3, 4A and the 2024 four-year-review increases, Section 232, and the 2026 Section 301 forced-labor tariff on 60 economies: 10% or 12.5% by origin, or a 10%/12.5% cap net of MFN for the EU, Taiwan, Japan, South Korea and Switzerland, in effect since 24 Jul 2026, FR Doc. 2026-15181, HTS 9903.05.20-9903.05.84), the total current rate, the date the data was checked, and notes naming each exemption or assumption (Section 232 goods, USMCA- or CAFTA-DR-qualifying entries, listed products). Also states when the Section 301 China product exclusions end, in both official wordings: through 11:59 p.m. EDT on November 9, 2026 (Federal Register, FR Doc. 2025-21671), which USTR\'s 26 Nov 2025 press release gives as "until November 10, 2026". Figures are estimates; IEEPA tariffs ended 20 Feb 2026 and are not included. Optionally computes dollar impact from annual import volume.',
+    description: 'Calculate the full stacked US import tariff rate for an HTS code from a specific origin country. Returns: base rate, each additional layer (China Section 301 matched by HTS line to Lists 1, 2, 3, 4A and the 2024 four-year-review increases; Section 232 steel, aluminum and copper matched by HTS line to the U.S. note 16 lists, headings 9903.82.02-.26: 50% on listed metal articles, 25% on listed derivatives, UK and 15%-floor rates, with the metal-content conditions stated; other Section 232 programs (vehicles and parts, wood products, trucks, semiconductors, drones) flagged as needs review when the line is named, not computed; Section 301 Brazil, 25% since 22 Jul 2026, heading 9903.05.01, with its exemption lists; and the 2026 Section 301 forced-labor tariff on 60 economies: 10% or 12.5% by origin, or a 10%/12.5% cap net of MFN for the EU, Taiwan, Japan, South Korea and Switzerland, in effect since 24 Jul 2026, FR Doc. 2026-15181, HTS 9903.05.20-9903.05.84), the total current rate, the date the data was checked, and notes naming each exemption or assumption (Section 232 goods, USMCA- or CAFTA-DR-qualifying entries, listed products). For products of Canada it notes that Section 338 duties may apply; their product lists are published only as images, so they are not computed. Also states when the Section 301 China product exclusions end, in both official wordings: through 11:59 p.m. EDT on November 9, 2026 (Federal Register, FR Doc. 2025-21671), which USTR\'s 26 Nov 2025 press release gives as "until November 10, 2026". Figures are estimates; IEEPA tariffs ended 20 Feb 2026 and are not included. Optionally computes dollar impact from annual import volume.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -126,7 +126,7 @@ export const TOOLS = [
     name: 'compare_origins',
     title: 'Compare tariffs by origin country',
     annotations: { title: 'Compare tariffs by origin country', readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: true },
-    description: 'Compare the estimated US import tariff for ONE HTS code across several origin countries side by side (e.g. China vs Vietnam vs Mexico vs India), for sourcing and "China plus one" decisions. For each origin returns the total current rate, the layers that make it up (MFN base, Section 301 China, Section 232, 2026 Section 301 forced-labor tariff) and the rate after the Section 301 China exclusions end (through 11:59 p.m. EDT on 9 Nov 2026 per the Federal Register, FR Doc. 2025-21671; USTR\'s press release says until 10 Nov 2026), sorted lowest first, with the dollar duty when an annual import value is given. Estimates only; preferential rates (USMCA, FTAs) depend on rules of origin and are not assumed.',
+    description: 'Compare the estimated US import tariff for ONE HTS code across several origin countries side by side (e.g. China vs Vietnam vs Mexico vs India), for sourcing and "China plus one" decisions. For each origin returns the total current rate, the layers that make it up (MFN base, Section 301 China, Section 232 by HTS line, Section 301 Brazil, 2026 Section 301 forced-labor tariff) and the rate after the Section 301 China exclusions end (through 11:59 p.m. EDT on 9 Nov 2026 per the Federal Register, FR Doc. 2025-21671; USTR\'s press release says until 10 Nov 2026), sorted lowest first, with the dollar duty when an annual import value is given. Estimates only; preferential rates (USMCA, FTAs) depend on rules of origin and are not assumed.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -151,6 +151,20 @@ export const TOOLS = [
 
 // Returns the MCP content object for a tool call. Never throws for ordinary failures —
 // an unreachable upstream is reported to the caller as text, same as the stdio server always did.
+// Rank 10-digit lines under a matched heading: lines whose own text shares words with the query first,
+// "Other" catch-all lines last, otherwise schedule order. The schedule text decides; nothing is invented.
+function rankLines(rows, query) {
+  const words = String(query).toLowerCase().split(/[^a-z0-9]+/).filter((w) => w.length >= 3);
+  const score = (r) => {
+    const d = clean(r.description).toLowerCase();
+    let s = 0;
+    for (const w of words) if (d.includes(w.replace(/s$/, ''))) s += 2;
+    if (/^other\b/.test(d)) s -= 1;
+    return s;
+  };
+  return rows.map((r, i) => ({ r, i, s: score(r) })).sort((a, b) => b.s - a.s || a.i - b.i).map((x) => x.r);
+}
+
 export async function callTool(name, args = {}) {
 
   if (name === 'lookup_hts_code') {
@@ -164,22 +178,33 @@ export async function callTool(name, args = {}) {
     const alias = /^[0-9.\s]+$/.test(query) ? null : matchAlias(query);
     let found;
     let aliasData = null;
+    let altData = [];
     try {
-      if (alias) aliasData = await apiFetch('/hts/search?q=' + encodeURIComponent(alias.prefix));
+      if (alias) {
+        aliasData = await apiFetch('/hts/search?limit=60&q=' + encodeURIComponent(alias.prefix));
+        altData = await Promise.all((alias.alts || []).map(async (x) => ({ alt: x, data: await apiFetch('/hts/search?limit=60&q=' + encodeURIComponent(x.prefix)) })));
+      }
       found = await searchHts(query);
     } catch (e) {
       return { content: [{ type: 'text', text: 'Could not reach Tariff Monitor API: ' + e.message }] };
     }
     const data = found.data;
     if (aliasData?.ok && aliasData.results?.length) {
-      const rows = aliasData.results.map((r) => `${r.hts10}  ${clean(r.description)}`).join('\n');
-      const aliasCodes = new Set(aliasData.results.map((r) => r.hts10));
+      const ranked = rankLines(aliasData.results, query);
+      const rows = ranked.slice(0, 12).map((r) => `${r.hts10}  ${clean(r.description)}`).join('\n')
+        + (ranked.length > 12 ? `\n(${ranked.length - 12} more 10-digit lines under ${alias.heading}; search a longer code prefix to see them)` : '');
+      const altBlocks = altData.filter((x) => x.data?.ok && x.data.results?.length).map((x) => {
+        const rr = rankLines(x.data.results, query);
+        return `\n\nAlso common for "${alias.term}": HTS ${x.alt.heading}: ${x.alt.label}.\n\n` + rr.slice(0, 6).map((r) => `${r.hts10}  ${clean(r.description)}`).join('\n')
+          + (rr.length > 6 ? `\n(${rr.length - 6} more under ${x.alt.heading})` : '');
+      }).join('');
+      const aliasCodes = new Set([...aliasData.results, ...altData.flatMap((x) => x.data?.results || [])].map((r) => r.hts10));
       const extra = (data.ok ? data.results || [] : [])
         .filter((r) => !aliasCodes.has(r.hts10)).slice(0, 6)
         .map((r) => `${r.hts10}  ${clean(r.description)}`).join('\n');
       const text = `"${alias.term}" is normally classified under HTS ${alias.heading}: ${alias.label}${alias.label.endsWith('...') ? '' : '.'} `
         + 'A plain keyword search of the schedule misses or mislabels this product, so these codes come from that heading.\n\n'
-        + `Codes under ${alias.heading}:\n\n${rows}`
+        + `Codes under ${alias.heading} (ranked by match to your words, then by code):\n\n${rows}${altBlocks}`
         + (extra ? `\n\nOther codes whose description contains "${found.searched}":\n\n${extra}` : '')
         + '\n\nClassification depends on the exact material, construction and use; this heading is a starting point, not a ruling. '
         + 'Confirm in the official schedule (https://hts.usitc.gov/) or with CBP rulings (https://rulings.cbp.gov/). '
