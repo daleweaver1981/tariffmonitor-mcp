@@ -228,7 +228,7 @@ export async function callTool(name, args = {}) {
       return { content: [{ type: 'text', text: `HTS code ${hts} is not in the current US schedule, and neither is its 8- or 6-digit heading. Use lookup_hts_code to find the right code.` }] };
     }
 
-    const layers = (d.layers || []).map((l) => `  ${l.label}: +${Number(l.rate).toFixed(2)}%`).join('\n');
+    const layers = (d.layers || []).map((l) => `  ${l.label}${l.needs_review ? '' : `: +${Number(l.rate).toFixed(2)}%`}`).join('\n');
     const cliffDelta = (d.cliff_total_rate - d.total_rate).toFixed(2);
     const cliffLine = Number(cliffDelta) > 0
       ? `\nAfter the Section 301 China exclusions end (${EXCLUSION_END_SHORT}): ${d.cliff_total_rate.toFixed(2)}% (+${cliffDelta}pp)`
@@ -303,8 +303,8 @@ export async function callTool(name, args = {}) {
     okRows.sort((a, b) => a.r.d.total_rate - b.r.d.total_rate);
     const lines = okRows.map(({ c, r }) => {
       const d = r.d;
-      const layers = (d.layers || []).filter((l) => l.type !== 'base' && Number(l.rate) > 0)
-        .map((l) => `${l.label} +${Number(l.rate).toFixed(2)}%`).join('; ');
+      const layers = (d.layers || []).filter((l) => l.type !== 'base' && (Number(l.rate) > 0 || l.needs_review))
+        .map((l) => l.needs_review ? l.label : `${l.label} +${Number(l.rate).toFixed(2)}%`).join('; ');
       const cliff = Number(d.cliff_total_rate) > Number(d.total_rate)
         ? ` -> ${Number(d.cliff_total_rate).toFixed(2)}% once the exclusions end` : '';
       const usd = vol > 0 ? ` | est. duty $${Math.round(d.total_rate / 100 * vol).toLocaleString()}/yr` : '';
