@@ -22,3 +22,7 @@ Verify after:
 What it adds: `remotes: [{type: streamable-http, url: https://adcreator-ai.com/mcp-free}]` next to the npm
 stdio package. When it lands, move EXP-tariffmonitor-006's judge date to publish date + 14 days if that is
 later than 2026-11-08.
+
+## Update 2026-10-26: 1.4.0
+
+npm 1.4.0 published from CT150 (existing token). server.json bumped to 1.4.0 and passes `mcp-publisher validate`. Registry publish attempted: 401 "Invalid or expired Registry JWT token". Same blocker: `mcp-publisher login github` device code in the fleet browser, then `mcp-publisher publish` (commands above, version 1.4.0).
