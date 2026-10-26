@@ -70,7 +70,7 @@ https://adcreator-ai.com/mcp-free
 
 - No key, no signup. Limits: 25 tool calls per IP per day, and 500 per day across all users (reset 00:00 UTC). `initialize` and `tools/list` do not count.
 - Over the limit you get a JSON-RPC error (HTTP 429) that points to the npm package below, which has no limit because it runs on your machine.
-- Each call is logged (time, tool, status, user agent, client IP) to measure use and filter scanners. The endpoint's own log does not store tool arguments; the lookups it makes to the upstream tariff API (adcreator-ai.com/api/tem, also ours) appear in that API's web access log.
+- Each call is logged (time, method, tool, status, user agent, client IP, and the client name the MCP client reports) to measure use and filter scanners. The log does not store tool arguments. Log lines are deleted after 365 days. Full details: [Privacy Policy](#privacy-policy).
 
 Claude Code: `claude mcp add --transport http tariffmonitor https://adcreator-ai.com/mcp-free`
 
@@ -116,3 +116,16 @@ The tool calls the free public API at adcreator-ai.com. No signup, no rate limit
 - [Official US Harmonized Tariff Schedule](https://hts.usitc.gov/) — the authoritative rates
 
 Built by [Dale Weaver / 0xpi](https://0xpi.com).
+
+## Privacy Policy
+
+The hosted endpoint `https://adcreator-ai.com/mcp-free` is covered by the privacy notice at
+https://adcreator-ai.com/public/mcp-privacy.html. In short:
+
+- **Collected:** for each request, the time, MCP method, tool name, status, duration, client IP address, user agent and the client name/version sent at `initialize`. Tool arguments are not stored in the call log. Rate limits use a hashed form of the IP address.
+- **Use:** answering the call, rate limits, abuse and scanner filtering, and counting use. No profiling, advertising or sale of data.
+- **Sharing:** none beyond hosting providers. HTS lookups go to our own tariff database (adcreator-ai.com), which records the HTS code and origin country of each rate lookup without your IP address. No data is sent to AI providers.
+- **Retention:** call-log lines are deleted automatically after 365 days; rate-limit counters last one day.
+- **Contact:** customer.service@0xpi.com for access or deletion requests.
+
+The npm package (`npx -y tariffmonitor-mcp`) runs on your machine and sends only its lookups (product search words, HTS codes and origin countries) to the same tariff database.
