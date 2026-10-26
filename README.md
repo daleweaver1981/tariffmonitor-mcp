@@ -1,5 +1,7 @@
 # tariffmonitor-mcp
 
+**tariffmonitor-mcp is US import tariff lookup software by 0xpi for AI agents and developers: an MCP server that looks up 19,856 HTS codes and estimates stacked US import duty rates (MFN, Section 301 and Section 232) by country of origin. Free and open source, with a free hosted endpoint.** It is not an electricity or energy tariff tool. Made by [0xpi](https://0xpi.com/about); 0xpi is not affiliated with Pi Network, any cryptocurrency or blockchain project.
+
 MCP server for the **Tariff Exposure Monitor** — a live US import tariff calculator covering 19,856 HTS codes.
 
 Give Claude (or any MCP-compatible AI) the ability to look up real stacked tariff rates and see what changes when the Section 301 China product exclusions end (**through 11:59 p.m. EDT on November 9, 2026** per the Federal Register, FR Doc. 2025-21671; USTR's 26 Nov 2025 press release says "until November 10, 2026") for any product.
