@@ -96,6 +96,7 @@ test("tools/list: every tool has a title and explicit read-only annotations (dir
   assert.equal(result.tools.length, 3);
   for (const t of result.tools) {
     assert.ok(t.title && t.title.length > 3, t.name + " title");
-    assert.deepEqual(t.annotations, { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: true }, t.name);
+    // The Claude directory portal reads the title from annotations.title, so it must match the top-level title.
+    assert.deepEqual(t.annotations, { title: t.title, readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: true }, t.name);
   }
 });

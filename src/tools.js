@@ -84,7 +84,7 @@ export const TOOLS = [
   {
     name: 'lookup_hts_code',
     title: 'Look up HTS code',
-    annotations: { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: true },
+    annotations: { title: 'Look up HTS code', readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: true },
     description: 'Find the US HTS (Harmonized Tariff Schedule) code for a product, by plain-language product name or numeric prefix, from the official USITC schedule (19,856 10-digit codes). Use this first whenever you have a product name rather than a code (e.g. "laptop", "wireless earbuds", "toys", "solar panels", "e-bike", "running shoes"), then pass a code to calculate_tariff or compare_origins. Everyday shopping words that a plain search of the schedule misses are mapped to the official heading that covers them (e.g. laptop -> 8471.30 "Portable automatic data processing machines"), and the answer names that heading. Otherwise descriptions are matched as one phrase; if a phrase matches nothing the tool retries single words and says which word it used. Returns up to 12 codes.',
     inputSchema: {
       type: 'object',
@@ -100,7 +100,7 @@ export const TOOLS = [
   {
     name: 'calculate_tariff',
     title: 'Calculate US import tariff',
-    annotations: { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: true },
+    annotations: { title: 'Calculate US import tariff', readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: true },
     description: 'Calculate the full stacked US import tariff rate for an HTS code from a specific origin country. Returns: base rate, each additional layer (China Section 301 matched by HTS line to Lists 1, 2, 3, 4A and the 2024 four-year-review increases, Section 232, and the 2026 Section 301 forced-labor tariff on 60 economies: 10% or 12.5% by origin, or a 10%/12.5% cap net of MFN for the EU, Taiwan, Japan, South Korea and Switzerland, in effect since 24 Jul 2026, FR Doc. 2026-15181, HTS 9903.05.20-9903.05.84), the total current rate, the date the data was checked, and notes naming each exemption or assumption (Section 232 goods, USMCA- or CAFTA-DR-qualifying entries, listed products). Also states when the Section 301 China product exclusions end, in both official wordings: through 11:59 p.m. EDT on November 9, 2026 (Federal Register, FR Doc. 2025-21671), which USTR\'s 26 Nov 2025 press release gives as "until November 10, 2026". Figures are estimates; IEEPA tariffs ended 20 Feb 2026 and are not included. Optionally computes dollar impact from annual import volume.',
     inputSchema: {
       type: 'object',
@@ -125,7 +125,7 @@ export const TOOLS = [
   {
     name: 'compare_origins',
     title: 'Compare tariffs by origin country',
-    annotations: { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: true },
+    annotations: { title: 'Compare tariffs by origin country', readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: true },
     description: 'Compare the estimated US import tariff for ONE HTS code across several origin countries side by side (e.g. China vs Vietnam vs Mexico vs India), for sourcing and "China plus one" decisions. For each origin returns the total current rate, the layers that make it up (MFN base, Section 301 China, Section 232, 2026 Section 301 forced-labor tariff) and the rate after the Section 301 China exclusions end (through 11:59 p.m. EDT on 9 Nov 2026 per the Federal Register, FR Doc. 2025-21671; USTR\'s press release says until 10 Nov 2026), sorted lowest first, with the dollar duty when an annual import value is given. Estimates only; preferential rates (USMCA, FTAs) depend on rules of origin and are not assumed.',
     inputSchema: {
       type: 'object',
@@ -217,7 +217,9 @@ export async function callTool(name, args = {}) {
 
     let r;
     try {
-      r = await fetchRate(hts, country, vol);
+      // 2026-10-25: no AI-written explanation paragraph. It was sometimes cut off mid-sentence and could
+      // state things the rate data does not (e.g. a wrong "no changes until" date); the structured stack is the answer.
+      r = await fetchRate(hts, country, vol, false);
     } catch (e) {
       return { content: [{ type: 'text', text: 'Could not reach Tariff Monitor API: ' + e.message }] };
     }
@@ -241,7 +243,7 @@ export async function callTool(name, args = {}) {
         + (cliffExtra > 0 ? `\n  Additional once the exclusions end: $${cliffExtra.toLocaleString()}/yr` : '');
     }
 
-    const explainBlock = d.explanation ? `\n\nExplanation: ${d.explanation}` : '';
+    const explainBlock = '';
     // Say it plainly when the answer is for a different code than the one asked for. The rate is
     // right for the code named on the first line, and the caller must be able to see that.
     const resolvedNote = (r.used && r.used !== r.requested)
