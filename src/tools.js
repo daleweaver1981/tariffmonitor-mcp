@@ -290,7 +290,7 @@ export async function callTool(name, args = {}) {
       explainBlock,
       '',
       `Estimate only. Check the authoritative rate at https://hts.usitc.gov/ before relying on it.`,
-      `Free browser calculator: ${CALC_URL}`,
+      `Free browser calculator: ${CALC_URL}?utm_source=mcp&utm_medium=referral&utm_campaign=tariffmonitor-202610-mcp&utm_content=calculator`,
     ].join('\n').replace(/\n{3,}/g, '\n\n').trim();
 
     return { content: [{ type: 'text', text }] };
