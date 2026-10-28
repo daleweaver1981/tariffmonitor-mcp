@@ -100,6 +100,8 @@ export const ALIASES = [
   {"terms":["car seat","car seats"],"prefix":"940120","heading":"9401.20","label":"Seats of a kind used for motor vehicles"},
   {"terms":["eyeglass frames","glasses frames","spectacle frames"],"prefix":"9003","heading":"9003","label":"Frames and mountings for spectacles, goggles or the like, and parts thereof"},
   {"terms":["wig","wigs","hair extensions","false eyelashes","eyelashes"],"prefix":"6704","heading":"6704","label":"Wigs, false beards, eyebrows and eyelashes, switches and the like, of human or animal hair or of textile materials"},
+  {"exact":true,"terms":["footwear","shoes","shoe","casual shoes"],"prefix":"6402","heading":"6402","label":"Other footwear with outer soles and uppers of rubber or plastics","alts":[{"prefix":"6403","heading":"6403","label":"Footwear with outer soles of rubber, plastics, leather or composition leather and uppers of leather"},{"prefix":"6404","heading":"6404","label":"Footwear with outer soles of rubber, plastics, leather or composition leather and uppers of textile materials"}]},
+  {"exact":true,"terms":["sandals","sandal","flip flops","flip-flops","flipflops","flip flop","flip-flop"],"prefix":"640220","heading":"6402.20","label":"Footwear with upper straps or thongs assembled to the sole by means of plugs","alts":[{"prefix":"640299","heading":"6402.99","label":"Other footwear with outer soles and uppers of rubber or plastics (most plastic sandals)"},{"prefix":"640399","heading":"6403.99","label":"Other footwear with uppers of leather (leather sandals)"}]},
   {"terms":["phone case","phone cases"],"prefix":"420232","heading":"4202.32","label":"Articles of a kind normally carried in the pocket or in the handbag, with outer surface of sheeting of plastics or of textile materials","alts":[{"prefix":"392690","heading":"3926.90","label":"Other articles of plastics (hard plastic cases are often classified here)"}]},
 ];
 
@@ -110,7 +112,8 @@ export function matchAlias(query) {
   let best = null;
   for (const a of ALIASES) {
     for (const t of a.terms) {
-      if (q.includes(' ' + t + ' ') && (!best || t.length > best.term.length)) best = { ...a, term: t };
+      const hit = a.exact ? q.trim() === t : q.includes(' ' + t + ' ');
+      if (hit && (!best || t.length > best.term.length)) best = { ...a, term: t };
     }
   }
   return best;
