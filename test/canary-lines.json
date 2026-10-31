@@ -1,5 +1,5 @@
 {
- "about": "Fixed lines the live engine must reproduce. Each total was derived from HTSUS 2026 Rev. 21 chapter 99 (U.S. notes 16, 20/31, 50, 52) and the MFN column; derivation in `why`. Built 2026-10-26 from the scout benchmark of that day. Update a line only with a primary-source reason in `why`.",
+ "about": "Fixed lines the live engine must reproduce. Each total was derived from HTSUS 2026 Rev. 21/22 chapter 99 (U.S. notes 16, 20/31, 50, 52; subchapter III note 41) and the MFN column; derivation in `why`. Built 2026-10-26 from the scout benchmark of that day. Update a line only with a primary-source reason in `why`.",
  "lines": [
   {
    "hts": "7323930080",
@@ -231,6 +231,66 @@
    ],
    "notice": "unmanned aircraft",
    "why": "Drone: MFN free + List 1 25% + forced-labor 12.5%; Section 232 UAS (FR Doc. 2026-16979, 100%/25% from 3 Sep 2026) flagged, annex lists are images."
+  },
+  {
+   "hts": "6810990020",
+   "country": "CN",
+   "total": 62.5,
+   "layers": [
+    "base",
+    "section_301",
+    "section_301_forced_labor",
+    "section_201_safeguard"
+   ],
+   "notice": "9903.45.31",
+   "why": "Quartz slab: MFN free + China 301 List 3 25% + forced-labor 12.5% + Section 201 quartz safeguard 25% within quota (9903.45.30; 50% over quota under 9903.45.31, year 15 Aug 2026-14 Aug 2027, note 41(e)). China is not exempt under note 41(c). HTSUS 2026 Rev. 22 ch. 99 subchapter III U.S. note 41 + headings 9903.45.30/.31 (Proclamation 11051, FR Doc. 2026-15975, 91 FR 50645; read 31 Oct 2026). Old engine: 37.5 (no safeguard)."
+  },
+  {
+   "hts": "6810990020",
+   "country": "IN",
+   "total": 35,
+   "layers": [
+    "base",
+    "section_301_forced_labor",
+    "section_201_safeguard"
+   ],
+   "why": "Quartz slab from India: MFN free + forced-labor 10% + Section 201 25% within quota. India is NOT on the note 41(c)(iii) developing-country list, so the safeguard applies. HTSUS 2026 Rev. 22 ch. 99 subchapter III U.S. note 41 + headings 9903.45.30/.31 (Proclamation 11051, FR Doc. 2026-15975, 91 FR 50645; read 31 Oct 2026). Old engine: 10."
+  },
+  {
+   "hts": "6810990020",
+   "country": "BR",
+   "total": 37.5,
+   "layers": [
+    "base",
+    "section_301_brazil",
+    "section_301_forced_labor"
+   ],
+   "notice": "exempt under U.S. note 41(c)",
+   "why": "Quartz slab from Brazil: Brazil is on the note 41(c)(iii) developing-country list, so no safeguard; MFN free + Brazil 301 25% + forced-labor 12.5% unchanged. HTSUS 2026 Rev. 22 ch. 99 subchapter III U.S. note 41 + headings 9903.45.30/.31 (Proclamation 11051, FR Doc. 2026-15975, 91 FR 50645; read 31 Oct 2026)."
+  },
+  {
+   "hts": "6810990020",
+   "country": "CA",
+   "total": 10,
+   "layers": [
+    "base",
+    "section_301_forced_labor"
+   ],
+   "notice": "Proclamation 11076",
+   "why": "Quartz slab from Canada: exempt under note 41(c)(i). The Canada section 338 note must cite Proclamation 11076 (FR Doc. 2026-22292, 91 FR 68861, scope change from 12:01 a.m. ET 30 Oct 2026; annex image-only, so may apply, verify). HTSUS 2026 Rev. 22 ch. 99 subchapter III U.S. note 41 + headings 9903.45.30/.31 (Proclamation 11051, FR Doc. 2026-15975, 91 FR 50645; read 31 Oct 2026)."
+  },
+  {
+   "hts": "7020006000",
+   "country": "CN",
+   "total": 42.5,
+   "layers": [
+    "base",
+    "section_301",
+    "section_301_forced_labor",
+    "section_201_review"
+   ],
+   "notice": "may apply; verify",
+   "why": "Other glass articles: 7020.00.60.00 is one of the three safeguard subheadings but also holds non-QSP glass, so the safeguard is flagged (25%/50% if quartz surface product), not added. MFN 5% + China 301 25% + forced-labor 12.5% unchanged. HTSUS 2026 Rev. 22 ch. 99 subchapter III U.S. note 41 + headings 9903.45.30/.31 (Proclamation 11051, FR Doc. 2026-15975, 91 FR 50645; read 31 Oct 2026)."
   }
  ]
 }
