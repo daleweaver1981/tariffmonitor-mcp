@@ -206,7 +206,7 @@ export async function callTool(name, args = {}) {
   if (name === 'lookup_hts_code') {
     const query = String(pick(args, KNOWN_ARGS.lookup_hts_code)?.value || '').trim();
     if (query.length < 2) {
-      return { content: [{ type: 'text', text: 'Query must be at least 2 characters.' }] };
+      return { content: [{ type: 'text', text: 'Query must be at least 2 characters.' }], isError: true };
     }
     // A shopping word ("laptop", "earbuds") either finds nothing in a keyword search or finds
     // the wrong goods ("toys" -> only pet toys). Search the official heading for it instead, and
@@ -222,7 +222,7 @@ export async function callTool(name, args = {}) {
       }
       found = await searchHts(query);
     } catch (e) {
-      return { content: [{ type: 'text', text: 'Could not reach Tariff Monitor API: ' + e.message }] };
+      return { content: [{ type: 'text', text: 'Could not reach Tariff Monitor API: ' + e.message }], isError: true };
     }
     const data = found.data;
     if (aliasData?.ok && aliasData.results?.length) {
@@ -273,7 +273,7 @@ export async function callTool(name, args = {}) {
     const vol = Number(args.annual_import_value_usd) || 0;
 
     if (hts.length < 6) {
-      return { content: [{ type: 'text', text: 'hts_code must be at least 6 digits. Use lookup_hts_code to find the right code.' }] };
+      return { content: [{ type: 'text', text: 'hts_code must be at least 6 digits. Use lookup_hts_code to find the right code.' }], isError: true };
     }
     if (!/^[A-Z]{2}$/.test(countryRaw)) {
       return { content: [{ type: 'text', text: `origin_country must be an ISO-2 code (e.g. CN, VN, MX, IN, KR, TW, DE, JP); got "${String(originArg ? originArg.value : '').slice(0, 40)}".` }], isError: true };
@@ -285,11 +285,11 @@ export async function callTool(name, args = {}) {
       // state things the rate data does not (e.g. a wrong "no changes until" date); the structured stack is the answer.
       r = await fetchRate(hts, country, vol, false);
     } catch (e) {
-      return { content: [{ type: 'text', text: 'Could not reach Tariff Monitor API: ' + e.message }] };
+      return { content: [{ type: 'text', text: 'Could not reach Tariff Monitor API: ' + e.message }], isError: true };
     }
     const d = r.d;
     if (!d || !d.ok) {
-      return { content: [{ type: 'text', text: `HTS code ${hts} is not in the current US schedule, and neither is its 8- or 6-digit heading. Use lookup_hts_code to find the right code.` }] };
+      return { content: [{ type: 'text', text: `HTS code ${hts} is not in the current US schedule, and neither is its 8- or 6-digit heading. Use lookup_hts_code to find the right code.` }], isError: true };
     }
 
     const layers = (d.layers || []).map((l) => `  ${l.label}${l.needs_review ? '' : `: +${Number(l.rate).toFixed(2)}%`}`).join('\n');
@@ -338,7 +338,7 @@ export async function callTool(name, args = {}) {
   if (name === 'compare_origins') {
     const hts = String(pick(args, ['hts_code', 'hts', 'code', 'htsCode'])?.value || '').replace(/[^0-9]/g, '');
     if (hts.length < 6) {
-      return { content: [{ type: 'text', text: 'hts_code must be at least 6 digits. Use lookup_hts_code to find the right code.' }] };
+      return { content: [{ type: 'text', text: 'hts_code must be at least 6 digits. Use lookup_hts_code to find the right code.' }], isError: true };
     }
     const originsArg = pick(args, ORIGINS_ALIASES);
     const originsVal = originsArg ? (Array.isArray(originsArg.value) ? originsArg.value : String(originsArg.value).split(/[\s,;]+/).filter(Boolean)) : null;
@@ -346,10 +346,10 @@ export async function callTool(name, args = {}) {
     const countries = [...new Set(raw.map((c) => String(c).trim().toUpperCase()))];
     const bad = countries.filter((c) => !/^[A-Z]{2}$/.test(c));
     if (bad.length) {
-      return { content: [{ type: 'text', text: `Not ISO-2 country codes: ${bad.join(', ')}. Use codes such as CN, VN, MX, IN, TH, KR, TW, DE, JP.` }] };
+      return { content: [{ type: 'text', text: `Not ISO-2 country codes: ${bad.join(', ')}. Use codes such as CN, VN, MX, IN, TH, KR, TW, DE, JP.` }], isError: true };
     }
     if (countries.length < 2 || countries.length > 8) {
-      return { content: [{ type: 'text', text: 'Give 2 to 8 origin countries to compare (ISO-2 codes).' }] };
+      return { content: [{ type: 'text', text: 'Give 2 to 8 origin countries to compare (ISO-2 codes).' }], isError: true };
     }
     const vol = Number(args.annual_import_value_usd) || 0;
 
@@ -358,11 +358,11 @@ export async function callTool(name, args = {}) {
       // explain=false: the per-origin plain-English explanation is slow and not needed for a table.
       results = await Promise.all(countries.map(async (c) => ({ c, r: await fetchRate(hts, c, vol, false) })));
     } catch (e) {
-      return { content: [{ type: 'text', text: 'Could not reach Tariff Monitor API: ' + e.message }] };
+      return { content: [{ type: 'text', text: 'Could not reach Tariff Monitor API: ' + e.message }], isError: true };
     }
     const okRows = results.filter((x) => x.r.d && x.r.d.ok);
     if (!okRows.length) {
-      return { content: [{ type: 'text', text: `HTS code ${hts} is not in the current US schedule, and neither is its 8- or 6-digit heading. Use lookup_hts_code to find the right code.` }] };
+      return { content: [{ type: 'text', text: `HTS code ${hts} is not in the current US schedule, and neither is its 8- or 6-digit heading. Use lookup_hts_code to find the right code.` }], isError: true };
     }
     const first = okRows[0].r;
     okRows.sort((a, b) => a.r.d.total_rate - b.r.d.total_rate);
@@ -395,5 +395,5 @@ export async function callTool(name, args = {}) {
     return { content: [{ type: 'text', text }] };
   }
 
-  return { content: [{ type: 'text', text: `Unknown tool: ${name}` }] };
+  return { content: [{ type: 'text', text: `Unknown tool: ${name}` }], isError: true };
 }
