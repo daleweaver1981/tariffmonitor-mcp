@@ -34,6 +34,13 @@ export const SERVER_INFO = { name: 'tariffmonitor', version: VERSION };
 
 // The schedule's descriptions carry inline markup such as <il>10 kg</il>; an agent should see text.
 const clean = (t) => String(t || '').replace(/<[^>]+>/g, '');
+// 2026-10-31: a 10-digit line's own text is often just "For men" or "Other". The engine now sends the
+// schedule's indent path (description_path, heading first); show it so the line means something.
+const cut = (t, n) => (t.length > n ? t.slice(0, n - 3).trimEnd() + '...' : t);
+const fullDesc = (r) => (Array.isArray(r.description_path) && r.description_path.length
+  ? r.description_path.map(clean).join(' > ') : clean(r.description));
+const lineDesc = (r) => (Array.isArray(r.description_path) && r.description_path.length > 1
+  ? r.description_path.slice(-3).map((t) => cut(clean(t), 70)).join(' > ') : clean(r.description));
 
 async function apiFetch(path) {
   const res = await fetch(`${API_BASE}${path}`, {
@@ -153,22 +160,51 @@ export const TOOLS = [
 // an unreachable upstream is reported to the caller as text, same as the stdio server always did.
 // Rank 10-digit lines under a matched heading: lines whose own text shares words with the query first,
 // "Other" catch-all lines last, otherwise schedule order. The schedule text decides; nothing is invented.
+const RANK_SYNONYMS = { mens: 'men', man: 'men', womens: 'women', woman: 'women', ladies: 'women', lady: 'women',
+  kids: 'child', kid: 'child', childrens: 'child', children: 'child', boys: 'child', girls: 'child' };
 function rankLines(rows, query) {
-  const words = String(query).toLowerCase().split(/[^a-z0-9]+/).filter((w) => w.length >= 3);
+  const words = String(query).toLowerCase().split(/[^a-z0-9]+/).filter((w) => w.length >= 3)
+    .map((w) => RANK_SYNONYMS[w] || w.replace(/s$/, ''));
   const score = (r) => {
-    const d = clean(r.description).toLowerCase();
+    const d = clean(r.full_description || r.description).toLowerCase();
     let s = 0;
-    for (const w of words) if (d.includes(w.replace(/s$/, ''))) s += 2;
+    // Word-start match: "men" scores "For men" but not "For women".
+    for (const w of words) if (new RegExp('(^|[^a-z])' + w.replace(/[^a-z0-9]/g, '')).test(d)) s += 2;
     if (/^other\b/.test(d)) s -= 1;
     return s;
   };
   return rows.map((r, i) => ({ r, i, s: score(r) })).sort((a, b) => b.s - a.s || a.i - b.i).map((x) => x.r);
 }
 
+// Argument names agents actually send (29 Oct Voidnet logs: "country" instead of "origin_country"). An
+// unknown name used to fall through to the China default and return China's rate for a Vietnam question.
+const ORIGIN_ALIASES = ['origin_country', 'country', 'origin', 'country_of_origin', 'origin_country_code', 'country_code', 'countryOfOrigin', 'originCountry'];
+const ORIGINS_ALIASES = ['origin_countries', 'countries', 'origins', 'origin_country_codes', 'country_codes', 'originCountries'];
+const KNOWN_ARGS = {
+  lookup_hts_code: ['query', 'q', 'product', 'keyword'],
+  calculate_tariff: ['hts_code', 'hts', 'code', 'htsCode', 'annual_import_value_usd', ...ORIGIN_ALIASES],
+  compare_origins: ['hts_code', 'hts', 'code', 'htsCode', 'annual_import_value_usd', ...ORIGINS_ALIASES],
+};
+function pick(args, names) {
+  for (const n of names) if (args[n] !== undefined && args[n] !== null && args[n] !== '') return { name: n, value: args[n] };
+  return null;
+}
+function unknownArgs(name, args) {
+  const known = KNOWN_ARGS[name];
+  if (!known) return null;
+  const bad = Object.keys(args || {}).filter((k) => !known.includes(k));
+  if (!bad.length) return null;
+  const accepted = { lookup_hts_code: 'query', calculate_tariff: 'hts_code, origin_country, annual_import_value_usd', compare_origins: 'hts_code, origin_countries, annual_import_value_usd' }[name];
+  return { content: [{ type: 'text', text: `Unknown argument${bad.length > 1 ? 's' : ''} for ${name}: ${bad.join(', ')}. Accepted: ${accepted}. Nothing was calculated, so no default was applied.` }], isError: true };
+}
+
 export async function callTool(name, args = {}) {
+  args = args && typeof args === 'object' ? args : {};
+  const unk = unknownArgs(name, args);
+  if (unk) return unk;
 
   if (name === 'lookup_hts_code') {
-    const query = String(args.query || '').trim();
+    const query = String(pick(args, KNOWN_ARGS.lookup_hts_code)?.value || '').trim();
     if (query.length < 2) {
       return { content: [{ type: 'text', text: 'Query must be at least 2 characters.' }] };
     }
@@ -191,17 +227,17 @@ export async function callTool(name, args = {}) {
     const data = found.data;
     if (aliasData?.ok && aliasData.results?.length) {
       const ranked = rankLines(aliasData.results, query);
-      const rows = ranked.slice(0, 12).map((r) => `${r.hts10}  ${clean(r.description)}`).join('\n')
+      const rows = ranked.slice(0, 12).map((r) => `${r.hts10}  ${lineDesc(r)}`).join('\n')
         + (ranked.length > 12 ? `\n(${ranked.length - 12} more 10-digit lines under ${alias.heading}; search a longer code prefix to see them)` : '');
       const altBlocks = altData.filter((x) => x.data?.ok && x.data.results?.length).map((x) => {
         const rr = rankLines(x.data.results, query);
-        return `\n\nAlso common for "${alias.term}": HTS ${x.alt.heading}: ${x.alt.label}.\n\n` + rr.slice(0, 6).map((r) => `${r.hts10}  ${clean(r.description)}`).join('\n')
+        return `\n\nAlso common for "${alias.term}": HTS ${x.alt.heading}: ${x.alt.label}.\n\n` + rr.slice(0, 6).map((r) => `${r.hts10}  ${lineDesc(r)}`).join('\n')
           + (rr.length > 6 ? `\n(${rr.length - 6} more under ${x.alt.heading})` : '');
       }).join('');
       const aliasCodes = new Set([...aliasData.results, ...altData.flatMap((x) => x.data?.results || [])].map((r) => r.hts10));
       const extra = (data.ok ? data.results || [] : [])
         .filter((r) => !aliasCodes.has(r.hts10)).slice(0, 6)
-        .map((r) => `${r.hts10}  ${clean(r.description)}`).join('\n');
+        .map((r) => `${r.hts10}  ${lineDesc(r)}`).join('\n');
       const text = `"${alias.term}" is normally classified under HTS ${alias.heading}: ${alias.label}${alias.label.endsWith('...') ? '' : '.'} `
         + 'A plain keyword search of the schedule misses or mislabels this product, so these codes come from that heading.\n\n'
         + `Codes under ${alias.heading} (ranked by match to your words, then by code):\n\n${rows}${altBlocks}`
@@ -216,7 +252,7 @@ export async function callTool(name, args = {}) {
         + (query.includes(' ') ? ', and no single word in it matched either' : '')
         + '. Try a broader single keyword, or a numeric HTS prefix such as 6404.' }] };
     }
-    const rows = data.results.map((r) => `${r.hts10}  ${clean(r.description)}`).join('\n');
+    const rows = data.results.map((r) => `${r.hts10}  ${lineDesc(r)}`).join('\n');
     const note = found.fellBackFrom
       ? `No code description contains the whole phrase "${found.fellBackFrom}", so this is a search for "${found.searched}".\n\n`
       : '';
@@ -229,15 +265,18 @@ export async function callTool(name, args = {}) {
   }
 
   if (name === 'calculate_tariff') {
-    const hts = String(args.hts_code || '').replace(/[^0-9]/g, '');
-    const country = String(args.origin_country || 'CN').toUpperCase().slice(0, 2);
+    const hts = String(pick(args, ['hts_code', 'hts', 'code', 'htsCode'])?.value || '').replace(/[^0-9]/g, '');
+    const originArg = pick(args, ORIGIN_ALIASES);
+    const countryRaw = String(originArg ? originArg.value : 'CN').trim().toUpperCase();
+    const country = countryRaw.slice(0, 2);
+    const originNote = originArg ? '' : ' (no origin_country given, so China was assumed; pass origin_country for another origin)';
     const vol = Number(args.annual_import_value_usd) || 0;
 
     if (hts.length < 6) {
       return { content: [{ type: 'text', text: 'hts_code must be at least 6 digits. Use lookup_hts_code to find the right code.' }] };
     }
-    if (!/^[A-Z]{2}$/.test(country)) {
-      return { content: [{ type: 'text', text: 'origin_country must be an ISO-2 code (e.g. CN, VN, MX, IN, KR, TW, DE, JP).' }] };
+    if (!/^[A-Z]{2}$/.test(countryRaw)) {
+      return { content: [{ type: 'text', text: `origin_country must be an ISO-2 code (e.g. CN, VN, MX, IN, KR, TW, DE, JP); got "${String(originArg ? originArg.value : '').slice(0, 40)}".` }], isError: true };
     }
 
     let r;
@@ -276,8 +315,8 @@ export async function callTool(name, args = {}) {
       : '';
 
     const text = [
-      `${resolvedNote}HTS ${d.hts10} — ${clean(d.description)}`,
-      `Origin: ${country}`,
+      `${resolvedNote}HTS ${d.hts10} — ${fullDesc(d)}`,
+      `Origin: ${country}${originNote}`,
       ...(d.data_as_of ? [`Data checked: ${d.data_as_of}`] : []),
       '',
       'Rate stack:',
@@ -297,12 +336,13 @@ export async function callTool(name, args = {}) {
   }
 
   if (name === 'compare_origins') {
-    const hts = String(args.hts_code || '').replace(/[^0-9]/g, '');
+    const hts = String(pick(args, ['hts_code', 'hts', 'code', 'htsCode'])?.value || '').replace(/[^0-9]/g, '');
     if (hts.length < 6) {
       return { content: [{ type: 'text', text: 'hts_code must be at least 6 digits. Use lookup_hts_code to find the right code.' }] };
     }
-    const raw = Array.isArray(args.origin_countries) && args.origin_countries.length
-      ? args.origin_countries : ['CN', 'VN', 'MX', 'IN', 'TH'];
+    const originsArg = pick(args, ORIGINS_ALIASES);
+    const originsVal = originsArg ? (Array.isArray(originsArg.value) ? originsArg.value : String(originsArg.value).split(/[\s,;]+/).filter(Boolean)) : null;
+    const raw = originsVal && originsVal.length ? originsVal : ['CN', 'VN', 'MX', 'IN', 'TH'];
     const countries = [...new Set(raw.map((c) => String(c).trim().toUpperCase()))];
     const bad = countries.filter((c) => !/^[A-Z]{2}$/.test(c));
     if (bad.length) {
@@ -340,7 +380,7 @@ export async function callTool(name, args = {}) {
     const resolvedNote = (first.used && first.used !== first.requested)
       ? `Note: ${first.requested} is not in the schedule. Rates are for heading ${first.used}, resolved to ${first.d.hts10}.\n\n` : '';
     const text = [
-      `${resolvedNote}HTS ${first.d.hts10} — ${clean(first.d.description)}`,
+      `${resolvedNote}HTS ${first.d.hts10} — ${fullDesc(first.d)}`,
       ...(first.d.data_as_of ? [`Data checked: ${first.d.data_as_of}`] : []),
       '',
       'Estimated total US import tariff by origin (lowest first):',

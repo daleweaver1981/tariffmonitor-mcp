@@ -64,7 +64,7 @@ export const ALIASES = [
   {"terms":["t-shirt","t-shirts","tshirt","tshirts","tee shirt","tee shirts","tank top","tank tops"],"prefix":"6109","heading":"6109","label":"T-shirts, singlets, tank tops and similar garments, knitted or crocheted","alts":[{"prefix":"6105","heading":"6105","label":"Men's or boys' shirts, knitted or crocheted (collared knit shirts such as polos)"}]},
   {"terms":["polo shirt","polo shirts"],"prefix":"6105","heading":"6105","label":"Men's or boys' shirts, knitted or crocheted","alts":[{"prefix":"6106","heading":"6106","label":"Women's or girls' blouses and shirts, knitted or crocheted"}]},
   {"terms":["water bottle","water bottles","insulated bottle","insulated bottles","tumbler","tumblers","thermos"],"prefix":"732393","heading":"7323.93","label":"Table, kitchen or other household articles of iron or steel: of stainless steel","alts":[{"prefix":"961700","heading":"9617.00","label":"Vacuum flasks and other vacuum vessels, complete; parts thereof other than glass inners"},{"prefix":"392410","heading":"3924.10","label":"Tableware and kitchenware, of plastics"}]},
-  {"terms":["dress","dresses"],"prefix":"61044","heading":"6104.41-6104.49","label":"Women's or girls' dresses, knitted or crocheted","alts":[{"prefix":"62044","heading":"6204.41-6204.49","label":"Women's or girls' dresses, not knitted (woven)"}]},
+  {"terms":["dress","dresses"],"unless":["shoe","shoes","shirt","shirts","boot","boots","pants","trousers","socks"],"prefix":"61044","heading":"6104.41-6104.49","label":"Women's or girls' dresses, knitted or crocheted","alts":[{"prefix":"62044","heading":"6204.41-6204.49","label":"Women's or girls' dresses, not knitted (woven)"}]},
   {"terms":["leggings","yoga pants"],"prefix":"61046","heading":"6104.61-6104.69","label":"Women's or girls' trousers, bib and brace overalls, breeches and shorts, knitted or crocheted"},
   {"terms":["hat","hats","cap","caps","baseball cap","beanie","beanies"],"prefix":"650500","heading":"6505.00","label":"Hats and other headgear, knitted or crocheted, or made up from lace, felt or other textile fabric, in the piece"},
   {"terms":["scarf","scarves"],"prefix":"611710","heading":"6117.10","label":"Shawls, scarves, mufflers, mantillas, veils and the like, knitted or crocheted","alts":[{"prefix":"6214","heading":"6214","label":"Shawls, scarves, mufflers, mantillas, veils and the like, not knitted"}]},
@@ -73,7 +73,7 @@ export const ALIASES = [
   {"terms":["bra","bras","brassiere","brassieres"],"prefix":"621210","heading":"6212.10","label":"Brassieres"},
   {"terms":["pajamas","pyjamas","nightgown","nightgowns"],"prefix":"61083","heading":"6108.31-6108.39","label":"Women's or girls' nightdresses and pajamas, knitted or crocheted","alts":[{"prefix":"61072","heading":"6107.21-6107.29","label":"Men's or boys' nightshirts and pajamas, knitted or crocheted"}]},
   {"terms":["jacket","jackets","coat","coats","windbreaker","parka"],"prefix":"6202","heading":"6202","label":"Women's or girls' overcoats, anoraks (including ski jackets), windbreakers and similar articles, not knitted","alts":[{"prefix":"6201","heading":"6201","label":"Men's or boys' overcoats, anoraks (including ski jackets), windbreakers and similar articles, not knitted"}]},
-  {"terms":["boots","leather shoes","leather boots"],"prefix":"6403","heading":"6403","label":"Footwear with outer soles of rubber, plastics, leather or composition leather and uppers of leather"},
+  {"terms":["boots","leather shoes","leather boots","dress shoes"],"prefix":"6403","heading":"6403","label":"Footwear with outer soles of rubber, plastics, leather or composition leather and uppers of leather","alts":[{"prefix":"6402","heading":"6402","label":"Other footwear with outer soles and uppers of rubber or plastics (rubber or plastic boots)"},{"prefix":"6404","heading":"6404","label":"Footwear with outer soles of rubber, plastics, leather or composition leather and uppers of textile materials (textile boots)"}]},
   {"terms":["candle","candles"],"prefix":"340600","heading":"3406.00","label":"Candles, tapers and the like"},
   {"terms":["mug","mugs","coffee mug","ceramic plates","dinnerware"],"prefix":"691200","heading":"6912.00","label":"Ceramic tableware, kitchenware, other household articles and toilet articles, other than of porcelain or china"},
   {"terms":["glassware","drinking glasses","wine glasses"],"prefix":"7013","heading":"7013","label":"Glassware of a kind used for table, kitchen, toilet, office, indoor decoration or similar purposes"},
@@ -105,14 +105,34 @@ export const ALIASES = [
   {"terms":["phone case","phone cases"],"prefix":"420232","heading":"4202.32","label":"Articles of a kind normally carried in the pocket or in the handbag, with outer surface of sheeting of plastics or of textile materials","alts":[{"prefix":"392690","heading":"3926.90","label":"Other articles of plastics (hard plastic cases are often classified here)"}]},
 ];
 
+// Words that only narrow a product ("men shoes", "kids sandals", "footwear from china"). An `exact`
+// alias (footwear, shoes, sandals) also fires when its term is a whole word in the query and EVERY other
+// word is on this list, so "men shoes" maps to chapter 64 while "shoe polish", "shoe rack" and
+// "horseshoes" keep the plain schedule search (2026-10-31: "men shoes" returned horseshoes and shoe machinery).
+export const QUALIFIERS = new Set(('men mens man s women womens woman ladies lady kids kid children childrens child '
+  + 'boys boy girls girl baby babies toddler toddlers infant infants youth unisex adult adults '
+  + 'for and the a of with in from to leather rubber plastic plastics textile canvas fabric casual running walking '
+  + 'hiking work safety athletic sport sports outdoor indoor winter summer slip-on waterproof new wholesale bulk '
+  + 'pair pairs import imported importing china chinese cn vietnam vietnamese vn india indian mexico mexican').split(' '));
+
 // Longest whole-phrase match wins, so "kitchen knives" beats "knives" and "lithium battery" is not
-// read as just "battery". Returns null when no known term appears in the query.
+// read as just "battery". `unless` words veto an alias ("dress shirt" is not a dress). Returns null
+// when no known term appears in the query.
 export function matchAlias(query) {
-  const q = ' ' + String(query || '').toLowerCase().replace(/[^a-z0-9-]+/g, ' ').trim() + ' ';
+  const norm = String(query || '').toLowerCase().replace(/[^a-z0-9-]+/g, ' ').trim();
+  const q = ' ' + norm + ' ';
+  const words = norm.split(' ').filter(Boolean);
   let best = null;
   for (const a of ALIASES) {
+    if (a.unless && a.unless.some((w) => words.includes(w))) continue;
     for (const t of a.terms) {
-      const hit = a.exact ? q.trim() === t : q.includes(' ' + t + ' ');
+      let hit;
+      if (!a.exact) hit = q.includes(' ' + t + ' ');
+      else if (norm === t) hit = true;
+      else if (q.includes(' ' + t + ' ')) {
+        const rest = (' ' + norm + ' ').replace(' ' + t + ' ', ' ').trim().split(' ').filter(Boolean);
+        hit = rest.every((w) => QUALIFIERS.has(w));
+      } else hit = false;
       if (hit && (!best || t.length > best.term.length)) best = { ...a, term: t };
     }
   }
