@@ -291,6 +291,16 @@
    ],
    "notice": "may apply; verify",
    "why": "Other glass articles: 7020.00.60.00 is one of the three safeguard subheadings but also holds non-QSP glass, so the safeguard is flagged (25%/50% if quartz surface product), not added. MFN 5% + China 301 25% + forced-labor 12.5% unchanged. HTSUS 2026 Rev. 22 ch. 99 subchapter III U.S. note 41 + headings 9903.45.30/.31 (Proclamation 11051, FR Doc. 2026-15975, 91 FR 50645; read 31 Oct 2026)."
+  },
+  {
+   "hts": "8479500000",
+   "country": "JP",
+   "total": 12.5,
+   "layers": [
+    "base",
+    "section_301_forced_labor"
+   ],
+   "why": "Industrial robots: MFN 2.5% + forced-labor 10% (9903.05.48/.49); no Section 232 layer. Proclamation 11077 of 28 Oct 2026 (FR Doc. 2026-22385, 91 FR 69199, published 2 Nov 2026), the Section 232 robotics and industrial machinery action, only directs negotiations and a 180-day status update; it imposes no duty, so this line must stay without a 232 layer until a later proclamation sets one (read 1 Nov 2026)."
   }
  ]
 }
