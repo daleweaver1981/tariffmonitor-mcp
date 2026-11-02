@@ -1,5 +1,5 @@
 {
- "about": "Fixed lines the live engine must reproduce. Each total was derived from HTSUS 2026 Rev. 21/22 chapter 99 (U.S. notes 16, 20/31, 50, 52; subchapter III note 41) and the MFN column; derivation in `why`. Built 2026-10-26 from the scout benchmark of that day. Update a line only with a primary-source reason in `why`.",
+ "about": "Fixed lines the live engine must reproduce. Each total was derived from HTSUS 2026 Rev. 21/22 chapter 99 (U.S. notes 16, 20/31, 50, 52; subchapter III notes 41, 43) and the MFN column; derivation in `why`. Built 2026-10-26 from the scout benchmark of that day. Update a line only with a primary-source reason in `why`.",
  "lines": [
   {
    "hts": "7323930080",
@@ -222,15 +222,53 @@
   {
    "hts": "8806210000",
    "country": "CN",
+   "total": 62.5,
+   "layers": [
+    "base",
+    "section_301",
+    "section_232_uas",
+    "section_301_forced_labor"
+   ],
+   "notice": "heading 9903.08.22",
+   "why": "Drone <=250 g: MFN free + China 301 List 1 25% + Section 232 UAS 25% (note 43(c)(4), heading 9903.08.22, no thermal imaging; 100% under 9903.08.21 with thermal imaging, stated in the notice) + forced-labor 12.5%. HTSUS 2026 Rev. 22 ch. 99 subchapter III U.S. note 43 + headings 9903.08.20-.26 (Proclamation of 13 Aug 2026, FR Doc. 2026-16979, 91 FR 53699; read 1 Nov 2026). Stacks per proclamation clause (3); notes 52(f)/50(a)(vi) do not list 9903.08.21-.26, so forced-labor stays. Old engine: 37.5 (UAS flagged as annex images)."
+  },
+  {
+   "hts": "8806240000",
+   "country": "CN",
+   "total": 137.5,
+   "layers": [
+    "base",
+    "section_301",
+    "section_232_uas",
+    "section_301_forced_labor"
+   ],
+   "notice": "heading 9903.08.21",
+   "why": "Drone 25-150 kg: MFN free + China 301 25% + Section 232 UAS 100% (note 43(c)(1) lists 8806.24.00 with no thermal split; heading 9903.08.21) + forced-labor 12.5%. HTSUS 2026 Rev. 22 ch. 99 subchapter III U.S. note 43 + headings 9903.08.20-.26 (Proclamation of 13 Aug 2026, FR Doc. 2026-16979, 91 FR 53699; read 1 Nov 2026). Stacks per proclamation clause (3); notes 52(f)/50(a)(vi) do not list 9903.08.21-.26, so forced-labor stays."
+  },
+  {
+   "hts": "8807909060",
+   "country": "CN",
    "total": 37.5,
    "layers": [
     "base",
     "section_301",
-    "section_232_review",
+    "section_232_uas_review",
     "section_301_forced_labor"
    ],
-   "notice": "unmanned aircraft",
-   "why": "Drone: MFN free + List 1 25% + forced-labor 12.5%; Section 232 UAS (FR Doc. 2026-16979, 100%/25% from 3 Sep 2026) flagged, annex lists are images."
+   "notice": "note 43(c)(2)",
+   "why": "Other aircraft/UAS parts: note 43(c)(2) covers 8807.90.90 only as parts for UAS over 25 kg MTOW (not retail delivery/agricultural/DoW), so flagged, not charged (9903.08.20 no change otherwise). MFN free + China 301 25% + forced-labor 12.5%. HTSUS 2026 Rev. 22 ch. 99 subchapter III U.S. note 43 + headings 9903.08.20-.26 (Proclamation of 13 Aug 2026, FR Doc. 2026-16979, 91 FR 53699; read 1 Nov 2026). Stacks per proclamation clause (3); notes 52(f)/50(a)(vi) do not list 9903.08.21-.26, so forced-labor stays."
+  },
+  {
+   "hts": "8806210000",
+   "country": "DE",
+   "total": 10,
+   "layers": [
+    "base",
+    "section_232_uas_review",
+    "section_301_forced_labor"
+   ],
+   "notice": "heading 9903.08.24",
+   "why": "EU drone: 15% total (9903.08.24) only with a certification that substantially all critical components/technology are from the US or partner countries (note 43(d), proclamation clause (4)); otherwise 100%/25%. Article-dependent, so flagged. MFN free + forced-labor (Germany) 10%. HTSUS 2026 Rev. 22 ch. 99 subchapter III U.S. note 43 + headings 9903.08.20-.26 (Proclamation of 13 Aug 2026, FR Doc. 2026-16979, 91 FR 53699; read 1 Nov 2026). Stacks per proclamation clause (3); notes 52(f)/50(a)(vi) do not list 9903.08.21-.26, so forced-labor stays."
   },
   {
    "hts": "6810990020",
