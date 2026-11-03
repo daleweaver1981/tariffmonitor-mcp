@@ -19,7 +19,7 @@ import { matchAlias } from './aliases.js';
 const API_BASE = 'https://adcreator-ai.com/api/tem';
 const PACK_URL = 'https://scholar.0xpi.com/get/tariffmonitor';
 const CALC_URL = 'https://adcreator-ai.com/tariffs/calculator';
-const VERSION = '1.4.3';
+const VERSION = '1.4.4';
 
 // The Section 301 China product exclusion end date, as the two official sources state it (both read
 // 2026-10-25). They differ by one day, so an agent must see both rather than one silently chosen:
@@ -29,6 +29,16 @@ const VERSION = '1.4.3';
 // The legal text is the Federal Register notice; the press release is how most coverage reports it.
 export const EXCLUSION_END_SHORT = '11:59 p.m. EDT on 9 Nov 2026 per the Federal Register (FR Doc. 2025-21671); USTR\'s 26 Nov 2025 press release says "until November 10, 2026"';
 const EXCLUSION_END_NOTE = 'Section 301 China product exclusion end, two official wordings: the Federal Register notice (FR Doc. 2025-21671, 90 FR 55232, 1 Dec 2025) extends the exclusions "through 11:59 p.m. eastern daylight time on November 9, 2026"; the USTR press release of 26 Nov 2025 says the 178 exclusions "have been extended until November 10, 2026". The Federal Register text is the legal one. This calculator does not model individual exclusions.';
+// From the cliff date the engine stops projecting (cliff_total_rate === total_rate, layers dated 10 Nov are in
+// total_rate), so the reply switches to past tense instead of promising a change that already happened (Run 270).
+export const EXCLUSION_CLIFF_DATE = '2026-11-10';
+export function exclusionsEnded(d) {
+  const asOf = (d && d.as_of) || new Date().toISOString().slice(0, 10);
+  return asOf >= ((d && d.cliff_date) || EXCLUSION_CLIFF_DATE);
+}
+const exclusionEndedNote = (asOf) => 'Section 301 China product exclusions: the Federal Register notice (FR Doc. 2025-21671, 90 FR 55232) extended them "through 11:59 p.m. eastern daylight time on November 9, 2026" (USTR\'s 26 Nov 2025 press release: "until November 10, 2026"). That date has passed. The total above is the rate in force on ' + asOf + ', with no exclusion applied (this calculator does not model individual exclusions); if USTR has since extended a specific exclusion, check the Federal Register (https://www.federalregister.gov/) before relying on the rate.';
+const exclusionNote = (d) => (exclusionsEnded(d)
+  ? exclusionEndedNote((d && d.as_of) || new Date().toISOString().slice(0, 10)) : EXCLUSION_END_NOTE);
 
 export const SERVER_INFO = { name: 'tariffmonitor', version: VERSION };
 
@@ -294,14 +304,15 @@ export async function callTool(name, args = {}) {
 
     const layers = (d.layers || []).map((l) => `  ${l.label}${l.needs_review ? '' : `: +${Number(l.rate).toFixed(2)}%`}`).join('\n');
     const cliffDelta = (d.cliff_total_rate - d.total_rate).toFixed(2);
-    const cliffLine = Number(cliffDelta) > 0
+    const ended = exclusionsEnded(d);
+    const cliffLine = ended ? '' : Number(cliffDelta) > 0
       ? `\nAfter the Section 301 China exclusions end (${EXCLUSION_END_SHORT}): ${d.cliff_total_rate.toFixed(2)}% (+${cliffDelta}pp)`
       : '\nNo rate change projected for this code/country combination when the Section 301 China exclusions end.';
 
     let dollarLines = '';
     if (vol > 0) {
       const currentDuty = Math.round(d.total_rate / 100 * vol);
-      const cliffExtra = Number(cliffDelta) > 0 ? Math.round(Number(cliffDelta) / 100 * vol) : 0;
+      const cliffExtra = !ended && Number(cliffDelta) > 0 ? Math.round(Number(cliffDelta) / 100 * vol) : 0;
       dollarLines = `\n\nDollar impact at $${vol.toLocaleString()}/yr import value:`
         + `\n  Current annual duties: $${currentDuty.toLocaleString()}`
         + (cliffExtra > 0 ? `\n  Additional once the exclusions end: $${cliffExtra.toLocaleString()}/yr` : '');
@@ -324,7 +335,7 @@ export async function callTool(name, args = {}) {
       `Total current rate: ${d.total_rate.toFixed(2)}%`,
       cliffLine,
       ...((d.notices || []).map((n) => `\n${n}`)),
-      `\n${EXCLUSION_END_NOTE}`,
+      `\n${exclusionNote(d)}`,
       dollarLines,
       explainBlock,
       '',
@@ -370,7 +381,7 @@ export async function callTool(name, args = {}) {
       const d = r.d;
       const layers = (d.layers || []).filter((l) => l.type !== 'base' && (Number(l.rate) > 0 || l.needs_review))
         .map((l) => l.needs_review ? l.label : `${l.label} +${Number(l.rate).toFixed(2)}%`).join('; ');
-      const cliff = Number(d.cliff_total_rate) > Number(d.total_rate)
+      const cliff = !exclusionsEnded(d) && Number(d.cliff_total_rate) > Number(d.total_rate)
         ? ` -> ${Number(d.cliff_total_rate).toFixed(2)}% once the exclusions end` : '';
       const usd = vol > 0 ? ` | est. duty $${Math.round(d.total_rate / 100 * vol).toLocaleString()}/yr` : '';
       return `${c}: ${Number(d.total_rate).toFixed(2)}%${cliff}${usd}\n    MFN base ${Number(d.base_rate).toFixed(2)}%${layers ? '; ' + layers : ''}`;
@@ -387,7 +398,7 @@ export async function callTool(name, args = {}) {
       ...lines,
       ...(failed.length ? [`\nNo rate returned for: ${failed.join(', ')}`] : []),
       ...notices.map((n) => `\n${n}`),
-      `\n${EXCLUSION_END_NOTE}`,
+      `\n${exclusionNote(first.d)}`,
       '',
       'Preferential rates (USMCA, free trade agreements) depend on rules of origin and are not applied here; the origin of goods is where they were substantially transformed, not where they ship from.',
       'Estimate only. Check the authoritative rate at https://hts.usitc.gov/ before relying on it. For one origin in detail, use calculate_tariff.',

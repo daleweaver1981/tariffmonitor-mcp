@@ -145,7 +145,7 @@ const server = http.createServer(async (req, res) => {
         instructions: 'US import tariff data. Call lookup_hts_code first when you only have a '
           + 'product description, then calculate_tariff with the HTS code and an ISO-2 origin '
           + 'country to get the full stacked rate (including the 2026 Section 301 forced-labor layer) and the '
-          + 'rate once the Section 301 China exclusions end (11:59 p.m. EDT, 9 Nov 2026, FR Doc. 2025-21671).',
+          + 'Section 301 China exclusion end date (through 11:59 p.m. EDT, 9 Nov 2026, FR Doc. 2025-21671), with the rate after it while that date is ahead.',
       } });
     }
     if (method === 'tools/list') {
@@ -248,7 +248,7 @@ const ferr = (res, status, id, code, message, data, extra) =>
 const FREE_INSTRUCTIONS = 'US import tariff data (free public endpoint, ' + FREE_PER_IP_DAY + ' tool calls per IP per day). '
   + 'Call lookup_hts_code first when you only have a product description, then calculate_tariff with the HTS code and an '
   + 'ISO-2 origin country for the full stacked rate (MFN + Section 301 + Section 232 + the 2026 Section 301 forced-labor layer), '
-  + 'or compare_origins to compare several origins. Section 301 China exclusions end: ' + EXCLUSION_END_SHORT + '. '
+  + 'or compare_origins to compare several origins. Section 301 China exclusion end date: ' + EXCLUSION_END_SHORT + '. '
   + 'Figures are estimates. Unlimited use: run it locally with `npx -y tariffmonitor-mcp` (' + NPM_URL + ').';
 
 const freeServer = http.createServer(async (req, res) => {
