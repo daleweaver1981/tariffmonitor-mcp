@@ -19,7 +19,7 @@ import { matchAlias } from './aliases.js';
 const API_BASE = 'https://adcreator-ai.com/api/tem';
 const PACK_URL = 'https://scholar.0xpi.com/get/tariffmonitor';
 const CALC_URL = 'https://adcreator-ai.com/tariffs/calculator';
-const VERSION = '1.4.2';
+const VERSION = '1.4.3';
 
 // The Section 301 China product exclusion end date, as the two official sources state it (both read
 // 2026-10-25). They differ by one day, so an agent must see both rather than one silently chosen:
