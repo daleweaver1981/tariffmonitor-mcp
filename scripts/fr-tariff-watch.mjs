@@ -57,3 +57,13 @@ if (!dry) {
     fs.unlinkSync(f);
   }
 }
+
+// 2026-11-04: the same run rebuilds https://adcreator-ai.com/tariffs/november-10-2026 from HTSUS ch. 99, the Federal Register
+// and the engine, so a USTR extension notice reaches that page the same day (scripts/nov10-page.py). Stops after 2027-01-31,
+// past the proposed 9 Jan 2027 end of the further maritime suspension; move the date if the page stays live.
+if (!dry && new Date() < new Date('2027-02-01')) {
+  try {
+    const out = execFileSync('python3', [path.join(ROOT, 'scripts/nov10-page.py'), '--deploy'], { timeout: 1500000 }).toString().trim();
+    console.log('nov10-page: ' + out.split('\n').slice(-3).join(' | '));
+  } catch (e) { console.error('nov10-page failed:', String(e.stdout || '').slice(-400), e.message); }
+}
