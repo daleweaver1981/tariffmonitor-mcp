@@ -9,7 +9,9 @@ Builds https://adcreator-ai.com/tariffs/november-10-2026 from primary sources pl
   2. Federal Register API: looks for a USTR notice published after the known ones that extends the exclusions or
      finalises a further suspension of the maritime Section 301 action. If one appears, the page shows it at the top
      the same day (title, date, link) and a CEO due item asks a person to rewrite the affected rows.
-  3. Engine (https://adcreator-ai.com/api/tem/rate, country CN): today's stacked rate per code.
+  3. Engine (https://adcreator-ai.com/api/tem/rate, country CN, as_of=2026-11-09): since 4 Nov 2026 the engine itself applies
+     the exclusions by statistical number and the maritime headings by date, so every figure on the page is the engine's own
+     answer (before = rate on 9 Nov with the exclusion; after = its cliff_total_rate / the rate on the maritime start date).
 Run daily from scripts/fr-tariff-watch.mjs (cron 11:50Z) and on its own: python3 scripts/nov10-page.py [--deploy] [--out DIR]
 No speculation: the page states what the notices say; where chapter 99 does not settle how two duties combine,
 the page says so and labels the figure "up to".
@@ -23,7 +25,7 @@ OUT = ARGS[ARGS.index('--out') + 1] if '--out' in ARGS else os.path.join(ROOT, '
 STATE = os.path.join(ROOT, 'data', 'nov10-state.json')
 UA = {'User-Agent': 'Mozilla/5.0 (tariffmonitor nov10-page; +https://adcreator-ai.com/tariffs/november-10-2026)'}
 CH99 = 'https://hts.usitc.gov/reststop/file?release=currentRelease&filename=Chapter%2099'
-API = 'https://adcreator-ai.com/api/tem/rate'
+API = os.environ.get("TEM_API", "http://10.0.0.105:3000/api/tem") + "/rate"  # LAN: no per-IP limit (server.js apiLimiter skip); public host as fallback via TEM_API
 URL = 'https://adcreator-ai.com/tariffs/november-10-2026'
 VM100_HTML = 'adcreator:~/adcreator-ai/public/tariffs-november-10-2026.html'
 VM100_JSON = 'adcreator:~/adcreator-ai/public/data/tariffs-november-10-2026.json'
@@ -150,12 +152,13 @@ MARITIME = [
 ]
 
 _cache = {}
-def engine(code):
+BEFORE = '2026-11-09'
+def engine(code, as_of=BEFORE):
     c = code.replace('.', '')
-    if c in _cache: return _cache[c]
+    if (c, as_of) in _cache: return _cache[(c, as_of)]
     d = {'ok': False, 'error': 'not fetched'}
     for _ in range(5):
-        try: d = json.loads(get(API + '?hts=%s&country=CN' % c, timeout=30)); break
+        try: d = json.loads(get(API + '?hts=%s&country=CN&as_of=%s&utm_source=nov10page' % (c, as_of), timeout=30)); break
         except urllib.error.HTTPError as e:
             body = e.read().decode('utf-8', 'replace')
             try: d = json.loads(body)
@@ -164,7 +167,7 @@ def engine(code):
                 time.sleep(min(int(e.headers.get('Retry-After') or 60), 900) + 2); continue
             break
         except Exception as e: d = {'ok': False, 'error': str(e)[:120]}; time.sleep(15)
-    _cache[c] = d; time.sleep(0.3); return d
+    _cache[(c, as_of)] = d; time.sleep(0.3); return d
 
 def short_desc(d):
     p = d.get('description_path') or []
@@ -183,14 +186,15 @@ def build_rows(excl):
             r = {'kind': 'exclusion', 'hts': fmt(code), 'program': 'Section 301 China exclusion ends (%s, %s)' % (LIST[hd], hd),
                  'source_note': 'U.S. note %s item (%d); heading %s' % ('20(www)' if x['sub'] == 'www' else '20(vvv)' + x['sub'][3:], x['n'], '9903.88.70' if x['sub'] == 'www' else '9903.88.69'),
                  'description': x['description'] or short_desc(d), 'whole_number': not x['description'], 'rise_pp': RATE[hd]}
-            if d.get('ok'):
-                layer = [l for l in d.get('layers', []) if l.get('heading') == hd]
-                if layer:
-                    r.update(rate_before=round(d['total_rate'] - layer[0]['rate'], 2), rate_after=round(d['total_rate'], 2), status='computed')
-                else:
-                    # The exclusion itself shows the List duty applies to these goods; our engine lacks that line's list coverage.
-                    r.update(status='engine_layer_missing', engine_total=d['total_rate'], rate_before=round(d['total_rate'], 2), rate_after=round(d['total_rate'] + RATE[hd], 2),
-                             adj='our engine does not show the %s duty on this line; "From 10 Nov" adds it because the exclusion note names this number under %s' % (LIST[hd], hd))
+            xe = d.get('section_301_exclusion') if d.get('ok') else None
+            if xe:
+                before = d['total_rate'] if (r['whole_number'] or xe['whole_number']) else xe['total_rate_if_excluded']
+                r.update(rate_before=round(before, 2), rate_after=round(d['cliff_total_rate'], 2), from_date=d['cliff_date'], status='computed',
+                         engine_status=xe['status'], basis=xe['basis'])
+                if xe['status'] != 'in_force' or abs(d['cliff_total_rate'] - before - RATE[hd]) > 0.01:
+                    r['adj'] = 'engine: exclusion %s, ends %s' % (xe['status'], xe['last_day'])
+            elif d.get('ok'):
+                eng_fail += 1; r.update(status='engine_mismatch'); print('engine has no exclusion block for', code)
             else:
                 r.update(status='engine_no_code')
                 if 'not found' not in str(d.get('error', '')): eng_fail += 1; print('engine error', code, str(d.get('error'))[:100])
@@ -199,15 +203,14 @@ def build_rows(excl):
         d = engine(code)
         r = {'kind': 'maritime', 'hts': fmt(code), 'program': 'Section 301 maritime action, suspension ends (%s, +100%%)' % hd,
              'source_note': 'heading %s; U.S. note 31(%s)' % (hd, 'k)(i' if hd == '9903.91.12' else 'l'), 'description': desc, 'rise_pp': 100.0}
-        if d.get('ok') and hd == '9903.91.14':
-            # Engine gap (3 Nov 2026): it does not apply heading 9903.92.10 (+25% on STS cranes of China since 27 Sep 2024).
-            # U.S. note 31(l)(i): goods under 9903.91.14 "shall also be subject to the additional duties imposed by heading 9903.92.10",
-            # so here the stacking is stated and the figure is exact, not "up to".
-            has = any(l.get('heading') == '9903.92.10' for l in d.get('layers', []))
-            b = d['total_rate'] + (0 if has else 25.0)
-            r.update(rate_before=round(b, 2), rate_after=round(b + 100, 2), status='computed', exact=True,
-                     adj='includes +25% under heading 9903.92.10 (in force since 27 Sep 2024), added here because our engine omits it')
-        elif d.get('ok'): r.update(rate_before=round(d['total_rate'], 2), rate_after=round(d['total_rate'] + 100, 2), status='computed')
+        if d.get('ok'):
+            d2 = engine(code, d['maritime_effective_date'])
+            if d2.get('ok'):
+                r.update(rate_before=round(d['total_rate'], 2), rate_after=round(d2['total_rate'], 2), from_date=d['maritime_effective_date'], status='computed',
+                         exact=d2.get('rate_qualifier') != 'up_to', qualifier=d2.get('rate_qualifier'),
+                         proposed=[p['basis'] for p in d2.get('depends_on_proposed', [])])
+                if hd == '9903.91.14': r['adj'] = 'includes +25% under heading 9903.92.10 (in force since 27 Sep 2024); U.S. note 31(l)(i) stacks the +100% on it'
+            else: eng_fail += 1; r.update(status='engine_no_code')
         else: eng_fail += 1; r.update(status='engine_no_code')
         rows.append(r)
     if eng_fail > 5: fail('Engine errors for %d codes (other than "not in schedule"); upstream may be down or rate-limited.' % eng_fail)
@@ -253,12 +256,14 @@ def render(rows, rev, updates, built):
         upd_html = ('<div class="alert"><strong>New Federal Register notice since this page was written.</strong> It may extend or change the dates below. '
                     'Read it before relying on any row here; this page will be rewritten to match it.<ul>%s</ul></div>' % li)
     def row_html(r):
-        if r['status'] in ('computed', 'engine_layer_missing'):
+        if r['status'] == 'computed':
             before, after = pct(r['rate_before']), pct(r['rate_after'])
-            if r['kind'] == 'maritime' and not r.get('exact'): after = 'up to ' + after
-            chg = '+%s pts' % (('%.1f' % r['rise_pp']).rstrip('0').rstrip('.'))
+            if r.get('qualifier') == 'up_to': after = 'up to ' + after
+            rise = r['rate_after'] - r['rate_before']
+            chg = '+%s pts' % (('%.2f' % rise).rstrip('0').rstrip('.')) if abs(rise) > 0.005 else 'no change'
+            if r.get('from_date') and r['from_date'] != '2026-11-10': chg += ' from ' + r['from_date']
         else:
-            before, after, chg = 'not in our engine', 'check', '+%s pts on the list duty' % (('%.1f' % r['rise_pp']).rstrip('0').rstrip('.'))
+            before, after, chg = 'not in the current schedule', 'check', '+%s pts on the list duty' % (('%.1f' % r['rise_pp']).rstrip('0').rstrip('.'))
         scope = ' <span class="tag">whole number</span>' if r.get('whole_number') else (' <span class="tag">only goods matching this description</span>' if r['kind'] == 'exclusion' else ' <span class="tag">scope: see note</span>')
         calc = '/tariffs/calculator?hts=%s&country=CN&utm_source=nov10page&utm_medium=organic&utm_campaign=tariffmonitor-202611-nov10&utm_content=row' % r['hts'].replace('.', '')
         return ('<tr data-k="%s"><td data-l="HTS"><a href="%s">%s</a></td><td data-l="Product">%s%s<div class="src">%s</div></td>'
@@ -371,8 +376,8 @@ footer{{border-top:1px solid var(--line);margin-top:48px;padding-top:18px}}
 
 <h2>How the figures are worked out</h2>
 <ul>
-<li><strong>Exclusion rows:</strong> "From 10 Nov" is our engine's full stacked rate for a product of China; "Before 10 Nov" is that rate minus the List duty the exclusion removes. "Not in our engine" means the number is new in the 1 July 2026 schedule and our engine does not have it yet; the list duty still comes back. Where our engine lacks a line's list coverage, the row says so and adds the list duty from 10 Nov.</li>
-<li><strong>Chassis and crane rows:</strong> headings 9903.91.12 and 9903.91.14 read "the duty provided in the applicable subheading + 100%". For the chassis lines, chapter 99 does not say how this combines with the List 3 duty they already pay, so "From 10 Nov" is labelled <em>up to</em>: today's rate plus 100 points. For ship-to-shore cranes, U.S. note 31(l)(i) says the +100% comes on top of the +25% under heading 9903.92.10, so that row is exact. Chassis means intermodal chassis, subassemblies and parts (U.S. note 31(k)(i)); dry van, refrigerated van and flatbed trailers are outside the scope. Crane rows cover ship-to-shore gantry cranes of China, with Chinese components, or made by a Chinese-owned company (U.S. note 31(l)); attested and grandfathered cranes fall under 9903.91.15 and 9903.91.16.</li>
+<li><strong>Exclusion rows:</strong> both figures are our engine's answers for a product of China: "Before 10 Nov" is its rate for an entry on 9 November with the exclusion claimed (for an exclusion limited to a written description, the rate for goods matching it), "From 10 Nov" its rate once the exclusion has ended. You get the same figures from the calculator and the MCP tools with a query date. "Not in the current schedule" means chapter 99 still names a statistical number that is no longer a line in the HTSUS revision shown above.</li>
+<li><strong>Chassis and crane rows:</strong> headings 9903.91.12 and 9903.91.14 read "the duty provided in the applicable subheading + 100%". For the chassis lines, chapter 99 does not say how this combines with the List 3 duty they already pay, so "From 10 Nov" is labelled <em>up to</em>: both duties added. For ship-to-shore cranes, U.S. note 31(l)(i) says the +100% comes on top of the +25% under heading 9903.92.10, so that row is exact. Chassis means intermodal chassis, subassemblies and parts (U.S. note 31(k)(i)); dry van, refrigerated van and flatbed trailers are outside the scope. Crane rows cover ship-to-shore gantry cranes of China, with Chinese components, or made by a Chinese-owned company (U.S. note 31(l)); attested and grandfathered cranes fall under 9903.91.15 and 9903.91.16.</li>
 <li>The IEEPA reciprocal and fentanyl tariffs are not in these figures: the government stopped collecting them on 24 February 2026, after the Supreme Court ruling.</li>
 <li>These are estimates for planning, not a ruling. Confirm the classification and rate with CBP or a licensed customs broker.</li>
 </ul>
@@ -407,7 +412,7 @@ def main():
     os.makedirs(OUT, exist_ok=True)
     data = {'built_at': built, 'source_revision': rev, 'page': URL, 'exclusion_entries': len(excl), 'fr_updates': updates,
             'sources': {k: {'name': v[0], 'url': v[1]} for k, v in SRC.items()},
-            'notes': 'Products of China. Estimates from the Tariff Exposure Monitor engine; maritime rows give the upper bound (today + 100 points) because chapter 99 does not state how 9903.91.12/9903.91.14 combine with List 3.',
+            'notes': 'Products of China. Every rate is the Tariff Exposure Monitor engine answer (as_of 2026-11-09 and its cliff / maritime start-date rate). Chassis rows (9903.91.12) are an upper bound ("up to") because chapter 99 does not state how that heading combines with List 3; crane rows (9903.91.14) are exact because U.S. note 31(l)(i) stacks them on 9903.92.10.',
             'rows': rows}
     page = render(rows, rev, updates, built)
     hp, jp = os.path.join(OUT, 'tariffs-november-10-2026.html'), os.path.join(OUT, 'tariffs-november-10-2026.json')

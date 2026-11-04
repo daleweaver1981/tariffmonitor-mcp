@@ -48,7 +48,7 @@ if (process.argv[1] === fileURLToPath(import.meta.url)) {
     console.log(`${x.ok ? 'OK  ' : 'FAIL'} ${x.l.hts} ${x.l.country}  expected ${x.l.total}%  live ${x.d ? x.d.total_rate : '-'}%  ${x.d ? x.d.layers.map((y) => `${y.type}${y.needs_review ? ':review' : ':' + y.rate}`).join(' + ') : ''}${x.ok ? '' : '  <- ' + x.why}`);
     if (args.has('--mcp')) {
       const text = await mcpCall(x.l.hts, x.l.country);
-      const stack = text.split('\n').filter((s) => /^HTS |^Origin|^  |^Total current rate/.test(s)).join('\n');
+      const stack = text.split('\n').filter((s) => /^HTS |^Origin|^  |^Total (current )?rate/.test(s)).join('\n');
       console.log(stack.split('\n').map((s) => '      mcp| ' + s).join('\n'));
     }
   }

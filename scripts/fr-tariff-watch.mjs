@@ -58,6 +58,16 @@ if (!dry) {
   }
 }
 
+// 2026-11-04: a FINAL USTR notice extending the China exclusions or further suspending the maritime action flips the engine's
+// dates (VM100 data/tem/s301-cn-dates-2026.json) in the same run, before the page rebuild below reads the engine. Proposed
+// notices and requests for comments never flip anything. See scripts/s301-dates-flip.mjs.
+if (!dry) {
+  try {
+    const out = execFileSync('node', [path.join(ROOT, 'scripts/s301-dates-flip.mjs'), `--days=${days}`], { timeout: 300000 }).toString().trim();
+    console.log('s301-dates-flip: ' + out.split('\n').slice(-4).join(' | '));
+  } catch (e) { console.error('s301-dates-flip failed:', String(e.stdout || '').slice(-400), e.message); process.exitCode = 2; }
+}
+
 // 2026-11-04: the same run rebuilds https://adcreator-ai.com/tariffs/november-10-2026 from HTSUS ch. 99, the Federal Register
 // and the engine, so a USTR extension notice reaches that page the same day (scripts/nov10-page.py). Stops after 2027-01-31,
 // past the proposed 9 Jan 2027 end of the further maritime suspension; move the date if the page stays live.

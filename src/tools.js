@@ -19,7 +19,7 @@ import { matchAlias } from './aliases.js';
 const API_BASE = 'https://adcreator-ai.com/api/tem';
 const PACK_URL = 'https://scholar.0xpi.com/get/tariffmonitor';
 const CALC_URL = 'https://adcreator-ai.com/tariffs/calculator';
-const VERSION = '1.4.4';
+const VERSION = '1.5.0';
 
 // The Section 301 China product exclusion end date, as the two official sources state it (both read
 // 2026-10-25). They differ by one day, so an agent must see both rather than one silently chosen:
@@ -28,7 +28,7 @@ const VERSION = '1.4.4';
 //   USTR press release, 26 Nov 2025: "The exclusions have been extended until November 10, 2026."
 // The legal text is the Federal Register notice; the press release is how most coverage reports it.
 export const EXCLUSION_END_SHORT = '11:59 p.m. EDT on 9 Nov 2026 per the Federal Register (FR Doc. 2025-21671); USTR\'s 26 Nov 2025 press release says "until November 10, 2026"';
-const EXCLUSION_END_NOTE = 'Section 301 China product exclusion end, two official wordings: the Federal Register notice (FR Doc. 2025-21671, 90 FR 55232, 1 Dec 2025) extends the exclusions "through 11:59 p.m. eastern daylight time on November 9, 2026"; the USTR press release of 26 Nov 2025 says the 178 exclusions "have been extended until November 10, 2026". The Federal Register text is the legal one. This calculator does not model individual exclusions.';
+const EXCLUSION_END_NOTE = 'Section 301 China product exclusion end, two official wordings: the Federal Register notice (FR Doc. 2025-21671, 90 FR 55232, 1 Dec 2025) extends the exclusions "through 11:59 p.m. eastern daylight time on November 9, 2026"; the USTR press release of 26 Nov 2025 says the 178 exclusions "have been extended until November 10, 2026". The Federal Register text is the legal one. Since 1.5.0 the 178 exclusions are applied by statistical number (HTSUS ch. 99 U.S. note 20(vvv) and 20(www)): a whole-number exclusion takes the List duty off the total through 9 Nov 2026; a description-limited one is reported with the rate for matching goods.';
 // From the cliff date the engine stops projecting (cliff_total_rate === total_rate, layers dated 10 Nov are in
 // total_rate), so the reply switches to past tense instead of promising a change that already happened (Run 270).
 export const EXCLUSION_CLIFF_DATE = '2026-11-10';
@@ -36,7 +36,7 @@ export function exclusionsEnded(d) {
   const asOf = (d && d.as_of) || new Date().toISOString().slice(0, 10);
   return asOf >= ((d && d.cliff_date) || EXCLUSION_CLIFF_DATE);
 }
-const exclusionEndedNote = (asOf) => 'Section 301 China product exclusions: the Federal Register notice (FR Doc. 2025-21671, 90 FR 55232) extended them "through 11:59 p.m. eastern daylight time on November 9, 2026" (USTR\'s 26 Nov 2025 press release: "until November 10, 2026"). That date has passed. The total above is the rate in force on ' + asOf + ', with no exclusion applied (this calculator does not model individual exclusions); if USTR has since extended a specific exclusion, check the Federal Register (https://www.federalregister.gov/) before relying on the rate.';
+const exclusionEndedNote = (asOf) => 'Section 301 China product exclusions: the Federal Register notice (FR Doc. 2025-21671, 90 FR 55232) extended them "through 11:59 p.m. eastern daylight time on November 9, 2026" (USTR\'s 26 Nov 2025 press release: "until November 10, 2026"). That date has passed. The total above is the rate in force on ' + asOf + ', with no exclusion applied. This server re-reads the end date from the Federal Register daily; if USTR has extended an exclusion very recently, check https://www.federalregister.gov/ before relying on the rate.';
 const exclusionNote = (d) => (exclusionsEnded(d)
   ? exclusionEndedNote((d && d.as_of) || new Date().toISOString().slice(0, 10)) : EXCLUSION_END_NOTE);
 
@@ -83,13 +83,13 @@ async function searchHts(query) {
 // The schedule holds 10-digit statistical suffixes, not zero-padded headings: 6404110000 does not
 // exist while 640411 does. Walk a not-found code back to its 8- then 6-digit heading rather than
 // telling an importer their product is absent from the US tariff schedule when it is not.
-async function fetchRate(hts, country, vol, explain = true) {
+async function fetchRate(hts, country, vol, explain = true, date = null) {
   const candidates = [hts];
   if (hts.length > 8) candidates.push(hts.slice(0, 8));
   if (hts.length > 6) candidates.push(hts.slice(0, 6));
   let last = null;
   for (const code of candidates) {
-    const qs = `/rate?hts=${encodeURIComponent(code)}&country=${country}${explain ? '&explain=1' : ''}`
+    const qs = `/rate?hts=${encodeURIComponent(code)}&country=${country}${explain ? '&explain=1' : ''}${date ? `&as_of=${date}` : ''}`
       + `${vol > 0 ? '&unit_cost=0' : ''}&utm_source=tariffmonitor-mcp`;
     last = await apiFetch(qs);
     if (last.ok) return { d: last, requested: hts, used: code };
@@ -118,7 +118,7 @@ export const TOOLS = [
     name: 'calculate_tariff',
     title: 'Calculate US import tariff',
     annotations: { title: 'Calculate US import tariff', readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: true },
-    description: 'Calculate the full stacked US import tariff rate for an HTS code from a specific origin country. Returns: base rate, each additional layer (China Section 301 matched by HTS line to Lists 1, 2, 3, 4A and the 2024 four-year-review increases; Section 232 steel, aluminum and copper matched by HTS line to the U.S. note 16 lists, headings 9903.82.02-.26: 50% on listed metal articles, 25% on listed derivatives, UK and 15%-floor rates, with the metal-content conditions stated; other Section 232 programs (vehicles and parts, wood products, trucks, semiconductors, drones) flagged as needs review when the line is named, not computed; Section 301 Brazil, 25% since 22 Jul 2026, heading 9903.05.01, with its exemption lists; and the 2026 Section 301 forced-labor tariff on 60 economies: 10% or 12.5% by origin, or a 10%/12.5% cap net of MFN for the EU, Taiwan, Japan, South Korea and Switzerland, in effect since 24 Jul 2026, FR Doc. 2026-15181, HTS 9903.05.20-9903.05.84), the total current rate, the date the data was checked, and notes naming each exemption or assumption (Section 232 goods, USMCA- or CAFTA-DR-qualifying entries, listed products). For products of Canada it notes that Section 338 duties may apply; their product lists are published only as images, so they are not computed. Also states when the Section 301 China product exclusions end, in both official wordings: through 11:59 p.m. EDT on November 9, 2026 (Federal Register, FR Doc. 2025-21671), which USTR\'s 26 Nov 2025 press release gives as "until November 10, 2026". Figures are estimates; IEEPA tariffs ended 20 Feb 2026 and are not included. Optionally computes dollar impact from annual import volume.',
+    description: 'Calculate the full stacked US import tariff rate for an HTS code from a specific origin country. Returns: base rate, each additional layer (China Section 301 matched by HTS line to Lists 1, 2, 3, 4A and the 2024 four-year-review increases; Section 232 steel, aluminum and copper matched by HTS line to the U.S. note 16 lists, headings 9903.82.02-.26: 50% on listed metal articles, 25% on listed derivatives, UK and 15%-floor rates, with the metal-content conditions stated; other Section 232 programs (vehicles and parts, wood products, trucks, semiconductors, drones) flagged as needs review when the line is named, not computed; Section 301 Brazil, 25% since 22 Jul 2026, heading 9903.05.01, with its exemption lists; and the 2026 Section 301 forced-labor tariff on 60 economies: 10% or 12.5% by origin, or a 10%/12.5% cap net of MFN for the EU, Taiwan, Japan, South Korea and Switzerland, in effect since 24 Jul 2026, FR Doc. 2026-15181, HTS 9903.05.20-9903.05.84), the total current rate, the date the data was checked, and notes naming each exemption or assumption (Section 232 goods, USMCA- or CAFTA-DR-qualifying entries, listed products). For products of Canada it notes that Section 338 duties may apply; their product lists are published only as images, so they are not computed. Also states when the Section 301 China product exclusions end, in both official wordings: through 11:59 p.m. EDT on November 9, 2026 (Federal Register, FR Doc. 2025-21671), which USTR\'s 26 Nov 2025 press release gives as "until November 10, 2026". Rates are effective-date aware: pass date (YYYY-MM-DD) for the rule in force on that entry date. For products of China it applies the 178 Section 301 product exclusions by statistical number (U.S. note 20(vvv)/(www)) through their end date, and the maritime Section 301 headings (9903.92.10 +25% on ship-to-shore cranes; from 10 Nov 2026 9903.91.14 +100% on those cranes and 9903.91.12 +100% on intermodal chassis, shown as "up to" because chapter 99 does not say how it combines with List 3), each with its legal source, and says when a rate depends on a proposed, not final, extension. Figures are estimates; IEEPA tariffs ended 20 Feb 2026 and are not included. Optionally computes dollar impact from annual import volume.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -134,6 +134,10 @@ export const TOOLS = [
         annual_import_value_usd: {
           type: 'number',
           description: 'Optional. Your annual import value in USD. If provided, the response includes the dollar cost of current duties and any additional cost once the Section 301 China exclusions end (after 11:59 p.m. EDT on November 9, 2026 per the Federal Register; USTR\'s press release says November 10, 2026).',
+        },
+        date: {
+          type: 'string',
+          description: 'Optional. Entry date YYYY-MM-DD; the rate in force on that date is returned (e.g. "2026-11-09" vs "2026-11-10" to see the Section 301 exclusion end and the maritime duties). Default: today in US Eastern time.',
         },
       },
       required: ['hts_code'],
@@ -159,6 +163,10 @@ export const TOOLS = [
         annual_import_value_usd: {
           type: 'number',
           description: 'Optional. Annual import value in USD; adds the estimated annual duty for each origin.',
+        },
+        date: {
+          type: 'string',
+          description: 'Optional. Entry date YYYY-MM-DD; the rate in force on that date is returned (e.g. "2026-11-09" vs "2026-11-10" to see the Section 301 exclusion end and the maritime duties). Default: today in US Eastern time.',
         },
       },
       required: ['hts_code'],
@@ -190,10 +198,37 @@ function rankLines(rows, query) {
 // unknown name used to fall through to the China default and return China's rate for a Vietnam question.
 const ORIGIN_ALIASES = ['origin_country', 'country', 'origin', 'country_of_origin', 'origin_country_code', 'country_code', 'countryOfOrigin', 'originCountry'];
 const ORIGINS_ALIASES = ['origin_countries', 'countries', 'origins', 'origin_country_codes', 'country_codes', 'originCountries'];
+const DATE_ALIASES = ['date', 'as_of', 'entry_date', 'asOf', 'query_date'];
+// Returns { date } (null = today) or { error } for a date that is not YYYY-MM-DD.
+function pickDate(args) {
+  const d = pick(args, DATE_ALIASES);
+  if (!d) return { date: null };
+  const v = String(d.value).trim().slice(0, 10);
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(v) || isNaN(Date.parse(v + 'T12:00:00Z'))) return { error: `${d.name} must be a date YYYY-MM-DD; got "${String(d.value).slice(0, 30)}".` };
+  return { date: v };
+}
+const pctTxt = (x) => `${Number(x).toFixed(2)}%`;
+// Exclusion, maritime, "up to" and proposed-extension lines from the engine's structured fields (1.5.0).
+function nov10Lines(d) {
+  const out = [];
+  const x = d.section_301_exclusion;
+  if (x) {
+    const ents = x.entries.map((e) => `${e.note}${e.description ? ` ("${e.description}")` : ' (whole statistical number)'}`).join('; ');
+    if (x.status === 'in_force' && x.whole_number) out.push(`Section 301 exclusion applied on ${d.as_of}: ${ents}, claimed under heading ${x.entries[0].claim_heading}, ${x.end_text} (${x.basis}, ${x.basis_url}). The ${x.entries[0].list} duty (+${x.entries[0].rate}%) is not in the total until it ends.`);
+    else if (x.status === 'in_force') out.push(`Section 301 exclusion for matching goods: ${ents}. If your goods match that description, the rate on ${d.as_of} is ${pctTxt(x.total_rate_if_excluded)} (claim heading ${x.entries[0].claim_heading}), ${x.end_text} (${x.basis}, ${x.basis_url}); from ${d.cliff_date} it is ${pctTxt(d.cliff_total_rate)}. The total above assumes the goods do not match.`);
+    else out.push(`Section 301 exclusion ended: ${ents} ran ${x.end_text} (${x.basis}). The ${x.entries[0].list} duty is in the total.`);
+  }
+  if (d.rate_qualifier === 'up_to') out.push(`"Up to": ${d.rate_qualifier_text || 'chapter 99 does not state how two layers combine, so the total adds both'}.`);
+  if (d.total_rate_if_out_of_scope !== undefined) out.push(`Scope: heading(s) ${d.scope_conditional_headings.join(', ')} cover only the goods described in their U.S. note; for other goods under this number the rate is ${pctTxt(d.total_rate_if_out_of_scope)}.`);
+  for (const p of d.depends_on_proposed || []) out.push(`DEPENDS ON A PROPOSED EXTENSION (not final): ${p.note.replace(/^Depends on a proposed, not final, notice: /, '')}`);
+  return out;
+}
+// The engine notices repeat the exclusion and proposed-extension facts that nov10Lines() states first; drop the repeats.
+const dedupNotices = (ns) => (ns || []).filter((n) => !/^(Depends on a proposed, not final, notice|Section 301 exclusion (applied|may apply|ended))/.test(n));
 const KNOWN_ARGS = {
   lookup_hts_code: ['query', 'q', 'product', 'keyword'],
-  calculate_tariff: ['hts_code', 'hts', 'code', 'htsCode', 'annual_import_value_usd', ...ORIGIN_ALIASES],
-  compare_origins: ['hts_code', 'hts', 'code', 'htsCode', 'annual_import_value_usd', ...ORIGINS_ALIASES],
+  calculate_tariff: ['hts_code', 'hts', 'code', 'htsCode', 'annual_import_value_usd', ...ORIGIN_ALIASES, ...DATE_ALIASES],
+  compare_origins: ['hts_code', 'hts', 'code', 'htsCode', 'annual_import_value_usd', ...ORIGINS_ALIASES, ...DATE_ALIASES],
 };
 function pick(args, names) {
   for (const n of names) if (args[n] !== undefined && args[n] !== null && args[n] !== '') return { name: n, value: args[n] };
@@ -204,7 +239,7 @@ function unknownArgs(name, args) {
   if (!known) return null;
   const bad = Object.keys(args || {}).filter((k) => !known.includes(k));
   if (!bad.length) return null;
-  const accepted = { lookup_hts_code: 'query', calculate_tariff: 'hts_code, origin_country, annual_import_value_usd', compare_origins: 'hts_code, origin_countries, annual_import_value_usd' }[name];
+  const accepted = { lookup_hts_code: 'query', calculate_tariff: 'hts_code, origin_country, annual_import_value_usd, date', compare_origins: 'hts_code, origin_countries, annual_import_value_usd, date' }[name];
   return { content: [{ type: 'text', text: `Unknown argument${bad.length > 1 ? 's' : ''} for ${name}: ${bad.join(', ')}. Accepted: ${accepted}. Nothing was calculated, so no default was applied.` }], isError: true };
 }
 
@@ -281,6 +316,8 @@ export async function callTool(name, args = {}) {
     const country = countryRaw.slice(0, 2);
     const originNote = originArg ? '' : ' (no origin_country given, so China was assumed; pass origin_country for another origin)';
     const vol = Number(args.annual_import_value_usd) || 0;
+    const qd = pickDate(args);
+    if (qd.error) return { content: [{ type: 'text', text: qd.error }], isError: true };
 
     if (hts.length < 6) {
       return { content: [{ type: 'text', text: 'hts_code must be at least 6 digits. Use lookup_hts_code to find the right code.' }], isError: true };
@@ -293,7 +330,7 @@ export async function callTool(name, args = {}) {
     try {
       // 2026-10-25: no AI-written explanation paragraph. It was sometimes cut off mid-sentence and could
       // state things the rate data does not (e.g. a wrong "no changes until" date); the structured stack is the answer.
-      r = await fetchRate(hts, country, vol, false);
+      r = await fetchRate(hts, country, vol, false, qd.date);
     } catch (e) {
       return { content: [{ type: 'text', text: 'Could not reach Tariff Monitor API: ' + e.message }], isError: true };
     }
@@ -302,11 +339,14 @@ export async function callTool(name, args = {}) {
       return { content: [{ type: 'text', text: `HTS code ${hts} is not in the current US schedule, and neither is its 8- or 6-digit heading. Use lookup_hts_code to find the right code.` }], isError: true };
     }
 
-    const layers = (d.layers || []).map((l) => `  ${l.label}${l.needs_review ? '' : `: +${Number(l.rate).toFixed(2)}%`}`).join('\n');
+    const layers = (d.layers || []).map((l) => `  ${l.label}${l.needs_review || l.excluded ? '' : `: +${Number(l.rate).toFixed(2)}%`}`).join('\n');
     const cliffDelta = (d.cliff_total_rate - d.total_rate).toFixed(2);
     const ended = exclusionsEnded(d);
+    const upTo = (q) => (q === 'up_to' ? 'up to ' : '');
+    const exclMatch = d.section_301_exclusion && d.section_301_exclusion.status === 'in_force' && !d.section_301_exclusion.whole_number;
     const cliffLine = ended ? '' : Number(cliffDelta) > 0
-      ? `\nAfter the Section 301 China exclusions end (${EXCLUSION_END_SHORT}): ${d.cliff_total_rate.toFixed(2)}% (+${cliffDelta}pp)`
+      ? `\nFor entries on or after ${d.cliff_date} (Section 301 China exclusions end ${EXCLUSION_END_SHORT}${d.maritime_effective_date === d.cliff_date && (d.notices || []).some((n) => n.startsWith('Section 301 maritime action')) ? '; maritime Section 301 suspension ends' : ''}): ${upTo(d.cliff_rate_qualifier)}${d.cliff_total_rate.toFixed(2)}% (+${cliffDelta}pp)`
+      : exclMatch ? `\nFor goods that match the exclusion below, the rate rises on ${d.cliff_date} from ${pctTxt(d.section_301_exclusion.total_rate_if_excluded)} to ${pctTxt(d.cliff_total_rate)}; for other goods under this number it does not change.`
       : '\nNo rate change projected for this code/country combination when the Section 301 China exclusions end.';
 
     let dollarLines = '';
@@ -332,9 +372,10 @@ export async function callTool(name, args = {}) {
       '',
       'Rate stack:',
       layers,
-      `Total current rate: ${d.total_rate.toFixed(2)}%`,
+      `Total rate for entries on ${d.as_of}${qd.date ? '' : ' (today, US Eastern)'}: ${upTo(d.rate_qualifier)}${d.total_rate.toFixed(2)}%`,
       cliffLine,
-      ...((d.notices || []).map((n) => `\n${n}`)),
+      ...nov10Lines(d).map((n) => `\n${n}`),
+      ...(dedupNotices(d.notices).map((n) => `\n${n}`)),
       `\n${exclusionNote(d)}`,
       dollarLines,
       explainBlock,
@@ -363,11 +404,13 @@ export async function callTool(name, args = {}) {
       return { content: [{ type: 'text', text: 'Give 2 to 8 origin countries to compare (ISO-2 codes).' }], isError: true };
     }
     const vol = Number(args.annual_import_value_usd) || 0;
+    const qd = pickDate(args);
+    if (qd.error) return { content: [{ type: 'text', text: qd.error }], isError: true };
 
     let results;
     try {
       // explain=false: the per-origin plain-English explanation is slow and not needed for a table.
-      results = await Promise.all(countries.map(async (c) => ({ c, r: await fetchRate(hts, c, vol, false) })));
+      results = await Promise.all(countries.map(async (c) => ({ c, r: await fetchRate(hts, c, vol, false, qd.date) })));
     } catch (e) {
       return { content: [{ type: 'text', text: 'Could not reach Tariff Monitor API: ' + e.message }], isError: true };
     }
@@ -379,22 +422,22 @@ export async function callTool(name, args = {}) {
     okRows.sort((a, b) => a.r.d.total_rate - b.r.d.total_rate);
     const lines = okRows.map(({ c, r }) => {
       const d = r.d;
-      const layers = (d.layers || []).filter((l) => l.type !== 'base' && (Number(l.rate) > 0 || l.needs_review))
-        .map((l) => l.needs_review ? l.label : `${l.label} +${Number(l.rate).toFixed(2)}%`).join('; ');
+      const layers = (d.layers || []).filter((l) => l.type !== 'base' && (Number(l.rate) > 0 || l.needs_review || l.excluded))
+        .map((l) => l.needs_review || l.excluded ? l.label : `${l.label} +${Number(l.rate).toFixed(2)}%`).join('; ');
       const cliff = !exclusionsEnded(d) && Number(d.cliff_total_rate) > Number(d.total_rate)
-        ? ` -> ${Number(d.cliff_total_rate).toFixed(2)}% once the exclusions end` : '';
+        ? ` -> ${d.cliff_rate_qualifier === 'up_to' ? 'up to ' : ''}${Number(d.cliff_total_rate).toFixed(2)}% from ${d.cliff_date}` : '';
       const usd = vol > 0 ? ` | est. duty $${Math.round(d.total_rate / 100 * vol).toLocaleString()}/yr` : '';
-      return `${c}: ${Number(d.total_rate).toFixed(2)}%${cliff}${usd}\n    MFN base ${Number(d.base_rate).toFixed(2)}%${layers ? '; ' + layers : ''}`;
+      return `${c}: ${d.rate_qualifier === 'up_to' ? 'up to ' : ''}${Number(d.total_rate).toFixed(2)}%${cliff}${usd}\n    MFN base ${Number(d.base_rate).toFixed(2)}%${layers ? '; ' + layers : ''}`;
     });
     const failed = results.filter((x) => !(x.r.d && x.r.d.ok)).map((x) => x.c);
-    const notices = [...new Set(okRows.flatMap(({ r }) => r.d.notices || []))];
+    const notices = [...new Set(okRows.flatMap(({ r }) => [...nov10Lines(r.d), ...dedupNotices(r.d.notices)]))];
     const resolvedNote = (first.used && first.used !== first.requested)
       ? `Note: ${first.requested} is not in the schedule. Rates are for heading ${first.used}, resolved to ${first.d.hts10}.\n\n` : '';
     const text = [
       `${resolvedNote}HTS ${first.d.hts10} — ${fullDesc(first.d)}`,
       ...(first.d.data_as_of ? [`Data checked: ${first.d.data_as_of}`] : []),
       '',
-      'Estimated total US import tariff by origin (lowest first):',
+      `Estimated total US import tariff by origin for entries on ${first.d.as_of}${qd.date ? '' : ' (today, US Eastern)'} (lowest first):`,
       ...lines,
       ...(failed.length ? [`\nNo rate returned for: ${failed.join(', ')}`] : []),
       ...notices.map((n) => `\n${n}`),
