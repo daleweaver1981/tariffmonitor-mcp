@@ -52,12 +52,19 @@ const fullDesc = (r) => (Array.isArray(r.description_path) && r.description_path
 const lineDesc = (r) => (Array.isArray(r.description_path) && r.description_path.length > 1
   ? r.description_path.slice(-3).map((t) => cut(clean(t), 70)).join(' > ') : clean(r.description));
 
-async function apiFetch(path) {
+async function apiFetch(path, { read400 = false } = {}) {
   const res = await fetch(`${API_BASE}${path}`, {
     headers: { 'User-Agent': `tariffmonitor-mcp/${VERSION}` },
   });
+  if (read400 && res.status === 400) return res.json(); // the API's reason for rejecting the input, not an outage
   if (!res.ok) throw new Error(`API error ${res.status}`);
   return res.json();
+}
+
+// Why no rate came back: the API's own reason, unless the code simply is not in the schedule.
+function noRateText(hts, d) {
+  if (d && d.error && !/not found/i.test(d.error)) return d.error;
+  return `HTS code ${hts} is not in the current US schedule, and neither is its 8- or 6-digit heading. Use lookup_hts_code to find the right code.`;
 }
 
 // A multi-word description finds nothing upstream, so retry the individual words, longest first —
@@ -91,7 +98,7 @@ async function fetchRate(hts, country, vol, explain = true, date = null) {
   for (const code of candidates) {
     const qs = `/rate?hts=${encodeURIComponent(code)}&country=${country}${explain ? '&explain=1' : ''}${date ? `&as_of=${date}` : ''}`
       + `${vol > 0 ? '&unit_cost=0' : ''}&utm_source=tariffmonitor-mcp`;
-    last = await apiFetch(qs);
+    last = await apiFetch(qs, { read400: true });
     if (last.ok) return { d: last, requested: hts, used: code };
   }
   return { d: last, requested: hts, used: null };
@@ -336,7 +343,7 @@ export async function callTool(name, args = {}) {
     }
     const d = r.d;
     if (!d || !d.ok) {
-      return { content: [{ type: 'text', text: `HTS code ${hts} is not in the current US schedule, and neither is its 8- or 6-digit heading. Use lookup_hts_code to find the right code.` }], isError: true };
+      return { content: [{ type: 'text', text: noRateText(hts, d) }], isError: true };
     }
 
     const layers = (d.layers || []).map((l) => `  ${l.label}${l.needs_review || l.excluded ? '' : `: +${Number(l.rate).toFixed(2)}%`}`).join('\n');
@@ -416,7 +423,7 @@ export async function callTool(name, args = {}) {
     }
     const okRows = results.filter((x) => x.r.d && x.r.d.ok);
     if (!okRows.length) {
-      return { content: [{ type: 'text', text: `HTS code ${hts} is not in the current US schedule, and neither is its 8- or 6-digit heading. Use lookup_hts_code to find the right code.` }], isError: true };
+      return { content: [{ type: 'text', text: noRateText(hts, results.map((x) => x.r.d).find((d) => d && d.error && !/not found/i.test(d.error)) || results[0].r.d) }], isError: true };
     }
     const first = okRows[0].r;
     okRows.sort((a, b) => a.r.d.total_rate - b.r.d.total_rate);
