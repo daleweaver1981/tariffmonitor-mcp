@@ -202,6 +202,29 @@ const RANK_SYN = { mens: 'men', man: 'men', womens: 'women', woman: 'women', boy
 export function wordsOf(text) {
   return String(text || '').toLowerCase().replace(/(\d)%/g, '$1 percent ').split(/[^a-z]+/).filter((w) => w.length >= 3);
 }
+
+// 2026-11-08 (live call): for "men's 100% cotton knit t-shirt" the model wrote "the material (cotton) is not specified in
+// the description". A reason must never claim the input lacks something the input states. Drop any clause that calls a
+// word missing/unspecified when that word (stemmed) is in the input; if nothing is left, use a neutral line.
+const MATERIALS = new Set(('cotton polyester nylon wool silk linen rayon viscose acrylic spandex elastane leather '
+  + 'plastic polyethylene polypropylene pvc rubber silicone steel stainles iron aluminum aluminium copper brass zinc '
+  + 'glass ceramic porcelain wood bamboo paper cardboard') .split(' '));
+const ABSENT_RE = /\b(not (?:specified|stated|mentioned|provided|given|indicated)|unspecified|missing|lacks?|absent)\b/i;
+export function honestReason(reason, ctx) {
+  if (!reason || !ctx || !ctx.size) return reason;
+  const parts = reason.split(/(?<=[.;])\s+|,\s*(?=but\b)|\s+but\s+/i);
+  const kept = parts.filter((cl) => {
+    if (!ABSENT_RE.test(cl)) return true;
+    const words = wordsOf(cl).map(stem).filter((w) => w.length >= 4 && !STOP.has(w));
+    if (words.some((w) => ctx.has(w))) return false;
+    // "material not specified" when the input names a material (cotton, steel, plastic ...) is also false.
+    if (/\bmaterial|fabric|fib(?:re|er)\b/i.test(cl) && [...ctx].some((w) => MATERIALS.has(w))) return false;
+    return true;
+  });
+  const out = kept.join(' ').replace(/\s+/g, ' ').replace(/^[,;\s]+|[,;\s]+$/g, '').trim();
+  if (!out) return 'Matches the wording of your input; see the quoted description.';
+  return /[.!?]$/.test(out) ? out : out + '.';
+}
 const stem = (w) => (RANK_SYN[w] || w.replace(/ies$/, 'y').replace(/s$/, ''));
 
 export function searchKeys(terms) {
@@ -299,7 +322,7 @@ export function validatePicks(parsed, cands, context = '', maxLevel = 'high') {
     if (out.length > 0 && level === 'high') level = 'medium';
     // A small vision model's reading of a photo cannot justify more than medium.
     if (LEVELS.indexOf(level) > LEVELS.indexOf(maxLevel)) level = maxLevel;
-    out.push({ code, full: c.full, quote: quoteOk ? quote : null, reason: String(p.reason || '').slice(0, 300), confidence: level });
+    out.push({ code, full: c.full, quote: quoteOk ? quote : null, reason: honestReason(String(p.reason || '').slice(0, 300), ctx), confidence: level });
     if (out.length === 3) break;
   }
   return { picks: out, rejected };
