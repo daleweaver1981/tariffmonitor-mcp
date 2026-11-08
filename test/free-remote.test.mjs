@@ -46,9 +46,9 @@ test('initialize negotiates a standard protocol version', async () => {
   assert.equal((await rpc(FREE, '/mcp-free', { jsonrpc: '2.0', method: 'notifications/initialized' })).status, 202);
 });
 
-test('tools/list serves the three tools with both exclusion-end wordings', async () => {
+test('tools/list serves the four tools with both exclusion-end wordings', async () => {
   const j = await (await rpc(FREE, '/mcp-free', { jsonrpc: '2.0', id: 2, method: 'tools/list' })).json();
-  assert.deepEqual(j.result.tools.map((t) => t.name), ['lookup_hts_code', 'calculate_tariff', 'compare_origins']);
+  assert.deepEqual(j.result.tools.map((t) => t.name), ['lookup_hts_code', 'calculate_tariff', 'classify_product', 'compare_origins']);
   const co = j.result.tools.find((t) => t.name === 'compare_origins').description;
   assert.match(co, /9 Nov 2026/); assert.match(co, /10 Nov 2026/); assert.match(co, /2025-21671/);
 });
@@ -93,7 +93,7 @@ test('keyed /mcp is unchanged: 401 without key, discover with key', async () => 
 test("tools/list: every tool has a title and explicit read-only annotations (directory requirement)", async () => {
   const r = await rpc(FREE, "/mcp-free", { jsonrpc: "2.0", id: 99, method: "tools/list" });
   const { result } = await r.json();
-  assert.equal(result.tools.length, 3);
+  assert.equal(result.tools.length, 4);
   for (const t of result.tools) {
     assert.ok(t.title && t.title.length > 3, t.name + " title");
     // The Claude directory portal reads the title from annotations.title, so it must match the top-level title.

@@ -248,7 +248,7 @@ const ferr = (res, status, id, code, message, data, extra) =>
 const FREE_INSTRUCTIONS = 'US import tariff data (free public endpoint, ' + FREE_PER_IP_DAY + ' tool calls per IP per day). '
   + 'Call lookup_hts_code first when you only have a product description, then calculate_tariff with the HTS code and an '
   + 'ISO-2 origin country for the full stacked rate (MFN + Section 301 + Section 232 + the 2026 Section 301 forced-labor layer), '
-  + 'or compare_origins to compare several origins. Section 301 China exclusion end date: ' + EXCLUSION_END_SHORT + '. '
+  + 'or compare_origins to compare several origins; classify_product suggests HTS codes from a description or a product photo (a photo counts as 2 calls). Section 301 China exclusion end date: ' + EXCLUSION_END_SHORT + '. '
   + 'Figures are estimates. Unlimited use: run it locally with `npx -y tariffmonitor-mcp` (' + NPM_URL + ').';
 
 const freeServer = http.createServer(async (req, res) => {
@@ -269,7 +269,7 @@ const freeServer = http.createServer(async (req, res) => {
   }
 
   let body;
-  try { body = JSON.parse(await readBody(req, 65536)); }
+  try { body = JSON.parse(await readBody(req, 3_500_000)); }
   catch (e) { return ferr(res, 400, null, -32700, 'Parse error', e.message); }
   if (Array.isArray(body)) return ferr(res, 400, null, -32600, 'Invalid Request', 'JSON-RPC batches are not supported.');
 
@@ -321,6 +321,15 @@ const freeServer = http.createServer(async (req, res) => {
           + `or use the hosted listing on Voidnet (${VOIDNET_URL}).`,
           { scope: over.scope, limit: over.limit, retry_after_seconds: secs, npm: NPM_URL, voidnet: VOIDNET_URL },
           { 'Retry-After': String(secs) });
+      }
+      // classify_product with a photo costs 2 of the daily calls (documented in the tool description).
+      if (name === 'classify_product' && (body?.params?.arguments?.image_url || body?.params?.arguments?.image_base64)) {
+        const over2 = takeFreeCall(ip);
+        if (over2) {
+          info.limited = over2.scope;
+          return ferr(res, 429, id, -32000, `Rate limit reached: a photo classification counts as 2 of the ${over2.limit} daily calls on this free public endpoint (resets 00:00 UTC). Send a text description instead, or run the tools locally with \`npx -y tariffmonitor-mcp\` (${NPM_URL}).`,
+            { scope: over2.scope, limit: over2.limit, npm: NPM_URL, voidnet: VOIDNET_URL }, { 'Retry-After': '3600' });
+        }
       }
       info.activate = true;
       const result = await callTool(name, body?.params?.arguments || {});

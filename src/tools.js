@@ -15,11 +15,12 @@
 // and each one STATES what it did. A silent substitution would be answering a different question.
 
 import { matchAlias } from './aliases.js';
+import { classifyProduct, defaultChat } from './classify.js';
 
 const API_BASE = 'https://adcreator-ai.com/api/tem';
 const PACK_URL = 'https://scholar.0xpi.com/get/tariffmonitor';
 const CALC_URL = 'https://adcreator-ai.com/tariffs/calculator';
-const VERSION = '1.5.0';
+const VERSION = '1.6.0';
 
 // The Section 301 China product exclusion end date, as the two official sources state it (both read
 // 2026-10-25). They differ by one day, so an agent must see both rather than one silently chosen:
@@ -151,6 +152,21 @@ export const TOOLS = [
     },
   },
   {
+    name: 'classify_product',
+    title: 'Classify a product to HTS codes (photo or invoice line)',
+    annotations: { title: 'Classify a product to HTS codes (photo or invoice line)', readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: true },
+    description: 'Suggest up to 3 US HTS-10 codes for a product from what you actually hold: a product description or invoice line (text), OR a product photo (image_url on https, or image_base64; PNG, JPEG or WebP, at most 1024 px on the long side and 3 MB). Each candidate has: the HTS description from our own HTS data (never written by a model), a one-line reason that quotes that description, a confidence label (high, medium or low), and, when you pass origin_country, the stacked duty from the same logic as calculate_tariff (MFN + Section 301 + Section 232 + the 2026 forced-labor layer). How it works: a photo is read by a self-hosted vision model on our own server (no outside AI provider), which notes what the product is, its material, use and any printed text; candidates are retrieved only from our HTS data; a self-hosted model then ranks only among those candidates, and any code that is not in our data is dropped. Photos are read on our own server and are not stored. These are SUGGESTIONS TO VERIFY, not a classification ruling: binding rulings come from US Customs and Border Protection (CBP, https://rulings.cbp.gov/), and the right line often depends on material, construction and use details a photo or one-line invoice may not show. Measured on our server: text takes about 1 to 3 minutes and a photo about 3 to 5 minutes because the models run on shared CPU hardware (set a long client timeout); if the model server is busy or unreachable the tool returns a retryable error. Free public endpoint: a text call counts as 1 of your 25 daily calls and a photo call counts as 2. Running the npm package locally needs your own Ollama server (set TM_OLLAMA_URL).',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        description: { type: 'string', description: 'Product description or invoice line, e.g. "men\'s 100% cotton knit t-shirt". Optional if a photo is given; with a photo it is used as extra context.' },
+        image_url: { type: 'string', description: 'https URL of a product photo (PNG, JPEG or WebP, at most 1024 px on the long side, 3 MB). Fetched by our server; private addresses are refused.' },
+        image_base64: { type: 'string', description: 'Alternative to image_url: the photo as base64 (a data: URL is accepted). Same size limits.' },
+        origin_country: { type: 'string', description: 'Optional ISO-2 origin country (e.g. CN, VN, MX). When given, each candidate includes its stacked duty.' },
+      },
+    },
+  },
+  {
     name: 'compare_origins',
     title: 'Compare tariffs by origin country',
     annotations: { title: 'Compare tariffs by origin country', readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: true },
@@ -236,6 +252,7 @@ const KNOWN_ARGS = {
   lookup_hts_code: ['query', 'q', 'product', 'keyword'],
   calculate_tariff: ['hts_code', 'hts', 'code', 'htsCode', 'annual_import_value_usd', ...ORIGIN_ALIASES, ...DATE_ALIASES],
   compare_origins: ['hts_code', 'hts', 'code', 'htsCode', 'annual_import_value_usd', ...ORIGINS_ALIASES, ...DATE_ALIASES],
+  classify_product: ['description', 'text', 'product', 'invoice_line', 'query', 'product_description', 'image_url', 'image_base64', ...ORIGIN_ALIASES],
 };
 function pick(args, names) {
   for (const n of names) if (args[n] !== undefined && args[n] !== null && args[n] !== '') return { name: n, value: args[n] };
@@ -246,14 +263,25 @@ function unknownArgs(name, args) {
   if (!known) return null;
   const bad = Object.keys(args || {}).filter((k) => !known.includes(k));
   if (!bad.length) return null;
-  const accepted = { lookup_hts_code: 'query', calculate_tariff: 'hts_code, origin_country, annual_import_value_usd, date', compare_origins: 'hts_code, origin_countries, annual_import_value_usd, date' }[name];
+  const accepted = { lookup_hts_code: 'query', calculate_tariff: 'hts_code, origin_country, annual_import_value_usd, date', compare_origins: 'hts_code, origin_countries, annual_import_value_usd, date', classify_product: 'description, image_url, image_base64, origin_country' }[name];
   return { content: [{ type: 'text', text: `Unknown argument${bad.length > 1 ? 's' : ''} for ${name}: ${bad.join(', ')}. Accepted: ${accepted}. Nothing was calculated, so no default was applied.` }], isError: true };
 }
+
+// Test seam: the model call is replaced in unit tests.
+export const classifyDeps = { chat: defaultChat };
 
 export async function callTool(name, args = {}) {
   args = args && typeof args === 'object' ? args : {};
   const unk = unknownArgs(name, args);
   if (unk) return unk;
+
+  if (name === 'classify_product') {
+    return classifyProduct(args, {
+      search: (q) => apiFetch('/hts/search?limit=60&q=' + encodeURIComponent(q)),
+      rate: (code, country) => fetchRate(code, country, 0, false, null),
+      chat: classifyDeps.chat,
+    });
+  }
 
   if (name === 'lookup_hts_code') {
     const query = String(pick(args, KNOWN_ARGS.lookup_hts_code)?.value || '').trim();
