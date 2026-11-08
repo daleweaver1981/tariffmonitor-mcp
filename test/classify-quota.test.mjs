@@ -1,3 +1,5 @@
+// Photo path is gated off by default (TM_CLASSIFY_PHOTOS); these tests cover it as it behaves when enabled.
+import "./_photos-on.mjs";
 // Free-endpoint quota for classify_product: text = 1 call, photo = 2 calls. Own server instance; no network, no model.
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';

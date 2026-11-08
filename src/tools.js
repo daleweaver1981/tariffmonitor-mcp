@@ -197,6 +197,24 @@ export const TOOLS = [
   },
 ];
 
+// 2026-11-08 (CEO): photo classification is OFF by default. Live tests: a stainless bottle was read as plastic and a
+// photo took ~4.5 min (longer than most MCP clients wait). Text classification is accurate (cotton knit t-shirt ->
+// 6109.10, all codes from our data). The listing must not offer what we don't serve, so when photos are off the
+// tool advertises text only and loadImage refuses. Turn on with TM_CLASSIFY_PHOTOS=1 after photo quality passes.
+export const CLASSIFY_PHOTOS = process.env.TM_CLASSIFY_PHOTOS === '1';
+if (!CLASSIFY_PHOTOS) {
+  const t = TOOLS.find((x) => x.name === 'classify_product');
+  if (t) {
+    t.title = 'Classify a product to HTS codes (description or invoice line)';
+    if (t.annotations) t.annotations.title = t.title;
+    delete t.inputSchema.properties.image_url; delete t.inputSchema.properties.image_base64;
+    t.inputSchema.properties.description.description = 'Product description or invoice line, e.g. "men\'s 100% cotton knit t-shirt". Required.';
+    t.inputSchema.required = ['description'];
+    t.description = 'Suggest up to 3 US HTS-10 codes for a product from a product description or an invoice line. Each candidate has: the HTS description from our own HTS data (never written by a model), a one-line reason that quotes that description, a confidence label (high, medium or low), and, when you pass origin_country, the stacked duty from the same logic as calculate_tariff (MFN + Section 301 + Section 232 + the 2026 forced-labor layer). How it works: candidates are retrieved only from our HTS data; a self-hosted model on our own server (no outside AI provider) ranks only among those candidates, and any code that is not in our data is dropped. These are SUGGESTIONS TO VERIFY, not a classification ruling: binding rulings come from US Customs and Border Protection (CBP, https://rulings.cbp.gov/), and the right line often depends on material, construction and use details a one-line description may not show. Measured on our server: about 1 to 3 minutes per call because the model runs on shared CPU hardware (set a long client timeout); if the model server is busy or unreachable the tool returns a retryable error. Free public endpoint: each call counts as 1 of your 25 daily calls. Running the npm package locally needs your own Ollama server (set TM_OLLAMA_URL).';
+  }
+}
+
+
 // Returns the MCP content object for a tool call. Never throws for ordinary failures —
 // an unreachable upstream is reported to the caller as text, same as the stdio server always did.
 // Rank 10-digit lines under a matched heading: lines whose own text shares words with the query first,

@@ -1,3 +1,5 @@
+// Photo path is gated off by default (TM_CLASSIFY_PHOTOS); these tests cover it as it behaves when enabled.
+import "./_photos-on.mjs";
 // classify_product unit tests: no network, no Ollama. Run: npm test   (Node >= 22)
 // Live checks against Ollama are in test/classify-live.mjs (manual, slow).
 import { test } from 'node:test';

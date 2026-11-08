@@ -173,6 +173,7 @@ function fetchOnce(u) {
 }
 
 export async function loadImage({ image_url, image_base64 }) {
+  if (process.env.TM_CLASSIFY_PHOTOS !== '1') throw new ClassifyError('Photo classification is not available yet. Send a product description or invoice line instead.');
   if (image_base64) {
     const raw = String(image_base64).replace(/^data:[^,]*,/, '').replace(/\s+/g, '');
     if (raw.length > Math.ceil(MAX_IMAGE_BYTES * 4 / 3) + 8) throw new ClassifyError(`The image is larger than ${MAX_IMAGE_BYTES / 1048576} MB.`);
