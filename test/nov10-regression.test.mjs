@@ -10,7 +10,9 @@ import fs from 'node:fs';
 
 const API = process.env.TEM_API || 'http://10.0.0.105:3000/api/tem';
 const F = JSON.parse(fs.readFileSync(new URL('./nov10-regression.json', import.meta.url), 'utf8'));
-const BEFORE = '2026-11-09', AFTER = '2026-11-10';
+// USTR moved both cliffs to 10 Jan 2027 on 9 Nov 2026 (FR Docs. 2026-22925 exclusions, 2026-22867 maritime).
+// MID = 10 Nov 2026, the old cliff: nothing may change on it any more.
+const BEFORE = '2027-01-09', AFTER = '2027-01-10', MID = '2026-11-10';
 const cache = new Map();
 async function rate(hts, country, date) {
   const k = `${hts}|${country}|${date}`;
@@ -35,7 +37,7 @@ test('fixture has the 206 page rows and 20 controls', () => {
   assert.equal(F.controls.length, 20);
 });
 
-test('exclusion rows: exclusion rate through 9 Nov, List duty from 10 Nov, cited to note 20 and FR Doc. 2025-21671', async () => {
+test('exclusion rows: exclusion rate through 9 Jan 2027 (still on 10 Nov 2026), List duty from 10 Jan 2027, cited to note 20 and FR Doc. 2026-22925', async () => {
   const rows = F.rows.filter((r) => r.kind === 'exclusion');
   const fails = [];
   for (const r of rows) {
@@ -50,7 +52,10 @@ test('exclusion rows: exclusion rate through 9 Nov, List duty from 10 Nov, cited
       const xb = b.section_301_exclusion, xa = a.section_301_exclusion;
       assert.ok(xb && xa, 'exclusion block present');
       assert.equal(xb.status, 'in_force'); assert.equal(xa.status, 'ended');
-      assert.match(xb.basis, /2025-21671/);
+      assert.match(xb.basis, /2026-22925/);
+      const m = await rate(c, 'CN', MID);
+      assert.equal(m.section_301_exclusion.status, 'in_force', 'still in force on 10 Nov 2026');
+      near(m.total_rate, b.total_rate, `${r.hts} unchanged on 10 Nov 2026`);
       assert.ok(xb.entries.some((e) => e.note === itemOf(r.source_note)), `cites ${itemOf(r.source_note)}`);
       const before = r.whole_number ? b.total_rate : xb.total_rate_if_excluded;
       if (r.whole_number) assert.equal(xb.whole_number, true);
@@ -60,14 +65,14 @@ test('exclusion rows: exclusion rate through 9 Nov, List duty from 10 Nov, cited
       } else {
         near(a.total_rate - before, r.rise_pp, `${r.hts} rise (page had no engine rate)`);
       }
-      near(b.cliff_total_rate, a.total_rate, `${r.hts} cliff = rate on 10 Nov`);
-      assert.ok(a.layers.some((l) => l.heading === xa.entries[0].list_heading && l.rate === r.rise_pp && !l.excluded), 'List layer charged on 10 Nov');
+      near(b.cliff_total_rate, a.total_rate, `${r.hts} cliff = rate on 10 Jan 2027`);
+      assert.ok(a.layers.some((l) => l.heading === xa.entries[0].list_heading && l.rate === r.rise_pp && !l.excluded), 'List layer charged on 10 Jan 2027');
     } catch (e) { fails.push(`${r.hts} [${r.source_note}]: ${e.message.split('\n')[0]}`); }
   }
   assert.deepEqual(fails, []);
 });
 
-test('maritime rows: +100% from 10 Nov; chassis "up to", cranes exact with 9903.92.10; proposed extension flagged', async () => {
+test('maritime rows: not charged on 10 Nov 2026, +100% from 10 Jan 2027; chassis "up to", cranes exact with 9903.92.10', async () => {
   const fails = [];
   for (const r of F.rows.filter((x) => x.kind === 'maritime')) {
     const c = code(r.hts);
@@ -75,20 +80,21 @@ test('maritime rows: +100% from 10 Nov; chassis "up to", cranes exact with 9903.
     const hd = r.program.match(/9903\.91\.1[24]/)[0];
     try {
       near(b.total_rate, r.rate_before, `${r.hts} before`);
+      near((await rate(c, 'CN', MID)).total_rate, r.rate_before, `${r.hts} unchanged on 10 Nov 2026`);
       near(a.total_rate, r.rate_after, `${r.hts} after`);
       near(b.cliff_total_rate, r.rate_after, `${r.hts} cliff`);
-      assert.ok(!b.layers.some((l) => l.heading === hd), `${hd} not charged on 9 Nov`);
+      assert.ok(!b.layers.some((l) => l.heading === hd), `${hd} not charged on 9 Jan 2027`);
       const L = a.layers.find((l) => l.heading === hd);
       assert.ok(L && L.rate === 100 && L.source_url.includes('hts.usitc.gov'), `${hd} +100% with ch. 99 source`);
       if (hd === '9903.91.12') { assert.equal(a.rate_qualifier, 'up_to'); assert.equal(b.cliff_rate_qualifier, 'up_to'); }
       else { assert.equal(a.rate_qualifier, null); assert.ok(a.layers.some((l) => l.heading === '9903.92.10' && l.rate === 25)); assert.ok(b.layers.some((l) => l.heading === '9903.92.10')); }
-      assert.ok(a.depends_on_proposed.some((p) => /2026-21755/.test(p.basis) && p.status === 'proposed'), 'says the further suspension is only proposed');
+      assert.ok(!(a.depends_on_proposed || []).some((p) => /2026-21755/.test(p.basis)), 'the 2026-21755 proposal is final now (FR Doc. 2026-22867), no longer flagged as proposed');
     } catch (e) { fails.push(`${r.hts}: ${e.message.split('\n')[0]}`); }
   }
   assert.deepEqual(fails, []);
 });
 
-test('20 control codes do not change on 10 Nov', async () => {
+test('20 control codes do not change on 10 Jan 2027', async () => {
   const fails = [];
   for (const k of F.controls) {
     const [b, a] = [await rate(k.hts, k.country, BEFORE), await rate(k.hts, k.country, AFTER)];

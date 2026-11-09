@@ -20,24 +20,23 @@ import { classifyProduct, defaultChat } from './classify.js';
 const API_BASE = 'https://adcreator-ai.com/api/tem';
 const PACK_URL = 'https://scholar.0xpi.com/get/tariffmonitor';
 const CALC_URL = 'https://adcreator-ai.com/tariffs/calculator';
-const VERSION = '1.6.0';
+const VERSION = '1.6.1';
 
-// The Section 301 China product exclusion end date, as the two official sources state it (both read
-// 2026-10-25). They differ by one day, so an agent must see both rather than one silently chosen:
-//   Federal Register, FR Doc. 2025-21671, 90 FR 55232 (1 Dec 2025): "extend the exclusions through
-//     11:59 p.m. eastern daylight time on November 9, 2026".
-//   USTR press release, 26 Nov 2025: "The exclusions have been extended until November 10, 2026."
-// The legal text is the Federal Register notice; the press release is how most coverage reports it.
-export const EXCLUSION_END_SHORT = '11:59 p.m. EDT on 9 Nov 2026 per the Federal Register (FR Doc. 2025-21671); USTR\'s 26 Nov 2025 press release says "until November 10, 2026"';
-const EXCLUSION_END_NOTE = 'Section 301 China product exclusion end, two official wordings: the Federal Register notice (FR Doc. 2025-21671, 90 FR 55232, 1 Dec 2025) extends the exclusions "through 11:59 p.m. eastern daylight time on November 9, 2026"; the USTR press release of 26 Nov 2025 says the 178 exclusions "have been extended until November 10, 2026". The Federal Register text is the legal one. Since 1.5.0 the 178 exclusions are applied by statistical number (HTSUS ch. 99 U.S. note 20(vvv) and 20(www)): a whole-number exclusion takes the List duty off the total through 9 Nov 2026; a description-limited one is reported with the rate for matching goods.';
+// The Section 301 China product exclusion end date. USTR extended all 178 exclusions on 9 Nov 2026
+// (FR Doc. 2026-22925, filed for public inspection 9 Nov, published 10 Nov 2026, read 2026-11-09):
+//   "through 11:59 p.m. eastern time on January 9, 2027".
+// Previous end: 11:59 p.m. EDT on 9 Nov 2026 (FR Doc. 2025-21671, 90 FR 55232). The engine reads the
+// date from VM100 data/tem/s301-cn-dates-2026.json; these strings must match it.
+export const EXCLUSION_END_SHORT = '11:59 p.m. ET on 9 Jan 2027 per the Federal Register (FR Doc. 2026-22925, which extended the earlier 9 Nov 2026 end)';
+const EXCLUSION_END_NOTE = 'Section 301 China product exclusion end: USTR extended the 178 exclusions "through 11:59 p.m. eastern time on January 9, 2027" (FR Doc. 2026-22925 (USTR, filed for public inspection 9 Nov 2026, published 10 Nov 2026)), replacing the earlier end of 11:59 p.m. EDT on 9 Nov 2026 (FR Doc. 2025-21671). Since 1.5.0 the 178 exclusions are applied by statistical number (HTSUS ch. 99 U.S. note 20(vvv) and 20(www)): a whole-number exclusion takes the List duty off the total through 9 Jan 2027; a description-limited one is reported with the rate for matching goods.';
 // From the cliff date the engine stops projecting (cliff_total_rate === total_rate, layers dated 10 Nov are in
 // total_rate), so the reply switches to past tense instead of promising a change that already happened (Run 270).
-export const EXCLUSION_CLIFF_DATE = '2026-11-10';
+export const EXCLUSION_CLIFF_DATE = '2027-01-10';
 export function exclusionsEnded(d) {
   const asOf = (d && d.as_of) || new Date().toISOString().slice(0, 10);
   return asOf >= ((d && d.cliff_date) || EXCLUSION_CLIFF_DATE);
 }
-const exclusionEndedNote = (asOf) => 'Section 301 China product exclusions: the Federal Register notice (FR Doc. 2025-21671, 90 FR 55232) extended them "through 11:59 p.m. eastern daylight time on November 9, 2026" (USTR\'s 26 Nov 2025 press release: "until November 10, 2026"). That date has passed. The total above is the rate in force on ' + asOf + ', with no exclusion applied. This server re-reads the end date from the Federal Register daily; if USTR has extended an exclusion very recently, check https://www.federalregister.gov/ before relying on the rate.';
+const exclusionEndedNote = (asOf) => 'Section 301 China product exclusions: USTR extended them "through 11:59 p.m. eastern time on January 9, 2027" (FR Doc. 2026-22925). That date has passed. The total above is the rate in force on ' + asOf + ', with no exclusion applied. This server re-reads the end date from the Federal Register daily; if USTR has extended an exclusion very recently, check https://www.federalregister.gov/ before relying on the rate.';
 const exclusionNote = (d) => (exclusionsEnded(d)
   ? exclusionEndedNote((d && d.as_of) || new Date().toISOString().slice(0, 10)) : EXCLUSION_END_NOTE);
 
@@ -126,7 +125,7 @@ export const TOOLS = [
     name: 'calculate_tariff',
     title: 'Calculate US import tariff',
     annotations: { title: 'Calculate US import tariff', readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: true },
-    description: 'Calculate the full stacked US import tariff rate for an HTS code from a specific origin country. Returns: base rate, each additional layer (China Section 301 matched by HTS line to Lists 1, 2, 3, 4A and the 2024 four-year-review increases; Section 232 steel, aluminum and copper matched by HTS line to the U.S. note 16 lists, headings 9903.82.02-.26: 50% on listed metal articles, 25% on listed derivatives, UK and 15%-floor rates, with the metal-content conditions stated; other Section 232 programs (vehicles and parts, wood products, trucks, semiconductors, drones) flagged as needs review when the line is named, not computed; Section 301 Brazil, 25% since 22 Jul 2026, heading 9903.05.01, with its exemption lists; and the 2026 Section 301 forced-labor tariff on 60 economies: 10% or 12.5% by origin, or a 10%/12.5% cap net of MFN for the EU, Taiwan, Japan, South Korea and Switzerland, in effect since 24 Jul 2026, FR Doc. 2026-15181, HTS 9903.05.20-9903.05.84), the total current rate, the date the data was checked, and notes naming each exemption or assumption (Section 232 goods, USMCA- or CAFTA-DR-qualifying entries, listed products). For products of Canada it notes that Section 338 duties may apply; their product lists are published only as images, so they are not computed. Also states when the Section 301 China product exclusions end, in both official wordings: through 11:59 p.m. EDT on November 9, 2026 (Federal Register, FR Doc. 2025-21671), which USTR\'s 26 Nov 2025 press release gives as "until November 10, 2026". Rates are effective-date aware: pass date (YYYY-MM-DD) for the rule in force on that entry date. For products of China it applies the 178 Section 301 product exclusions by statistical number (U.S. note 20(vvv)/(www)) through their end date, and the maritime Section 301 headings (9903.92.10 +25% on ship-to-shore cranes; from 10 Nov 2026 9903.91.14 +100% on those cranes and 9903.91.12 +100% on intermodal chassis, shown as "up to" because chapter 99 does not say how it combines with List 3), each with its legal source, and says when a rate depends on a proposed, not final, extension. Figures are estimates; IEEPA tariffs ended 20 Feb 2026 and are not included. Optionally computes dollar impact from annual import volume.',
+    description: 'Calculate the full stacked US import tariff rate for an HTS code from a specific origin country. Returns: base rate, each additional layer (China Section 301 matched by HTS line to Lists 1, 2, 3, 4A and the 2024 four-year-review increases; Section 232 steel, aluminum and copper matched by HTS line to the U.S. note 16 lists, headings 9903.82.02-.26: 50% on listed metal articles, 25% on listed derivatives, UK and 15%-floor rates, with the metal-content conditions stated; other Section 232 programs (vehicles and parts, wood products, trucks, semiconductors, drones) flagged as needs review when the line is named, not computed; Section 301 Brazil, 25% since 22 Jul 2026, heading 9903.05.01, with its exemption lists; and the 2026 Section 301 forced-labor tariff on 60 economies: 10% or 12.5% by origin, or a 10%/12.5% cap net of MFN for the EU, Taiwan, Japan, South Korea and Switzerland, in effect since 24 Jul 2026, FR Doc. 2026-15181, HTS 9903.05.20-9903.05.84), the total current rate, the date the data was checked, and notes naming each exemption or assumption (Section 232 goods, USMCA- or CAFTA-DR-qualifying entries, listed products). For products of Canada it notes that Section 338 duties may apply; their product lists are published only as images, so they are not computed. Also states when the Section 301 China product exclusions end: through 11:59 p.m. ET on January 9, 2027 (Federal Register, FR Doc. 2026-22925, which extended the earlier 9 Nov 2026 end). Rates are effective-date aware: pass date (YYYY-MM-DD) for the rule in force on that entry date. For products of China it applies the 178 Section 301 product exclusions by statistical number (U.S. note 20(vvv)/(www)) through their end date, and the maritime Section 301 headings (9903.92.10 +25% on ship-to-shore cranes; from 10 Nov 2026 9903.91.14 +100% on those cranes and 9903.91.12 +100% on intermodal chassis, shown as "up to" because chapter 99 does not say how it combines with List 3), each with its legal source, and says when a rate depends on a proposed, not final, extension. Figures are estimates; IEEPA tariffs ended 20 Feb 2026 and are not included. Optionally computes dollar impact from annual import volume.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -141,11 +140,11 @@ export const TOOLS = [
         },
         annual_import_value_usd: {
           type: 'number',
-          description: 'Optional. Your annual import value in USD. If provided, the response includes the dollar cost of current duties and any additional cost once the Section 301 China exclusions end (after 11:59 p.m. EDT on November 9, 2026 per the Federal Register; USTR\'s press release says November 10, 2026).',
+          description: 'Optional. Your annual import value in USD. If provided, the response includes the dollar cost of current duties and any additional cost once the Section 301 China exclusions end (after 11:59 p.m. ET on January 9, 2027 per the Federal Register; USTR\'s press release says November 10, 2026).',
         },
         date: {
           type: 'string',
-          description: 'Optional. Entry date YYYY-MM-DD; the rate in force on that date is returned (e.g. "2026-11-09" vs "2026-11-10" to see the Section 301 exclusion end and the maritime duties). Default: today in US Eastern time.',
+          description: 'Optional. Entry date YYYY-MM-DD; the rate in force on that date is returned (e.g. "2027-01-09" vs "2027-01-10" to see the Section 301 exclusion end and the maritime duties). Default: today in US Eastern time.',
         },
       },
       required: ['hts_code'],
@@ -170,7 +169,7 @@ export const TOOLS = [
     name: 'compare_origins',
     title: 'Compare tariffs by origin country',
     annotations: { title: 'Compare tariffs by origin country', readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: true },
-    description: 'Compare the estimated US import tariff for ONE HTS code across several origin countries side by side (e.g. China vs Vietnam vs Mexico vs India), for sourcing and "China plus one" decisions. For each origin returns the total current rate, the layers that make it up (MFN base, Section 301 China, Section 232 by HTS line, Section 301 Brazil, 2026 Section 301 forced-labor tariff) and the rate after the Section 301 China exclusions end (through 11:59 p.m. EDT on 9 Nov 2026 per the Federal Register, FR Doc. 2025-21671; USTR\'s press release says until 10 Nov 2026), sorted lowest first, with the dollar duty when an annual import value is given. Estimates only; preferential rates (USMCA, FTAs) depend on rules of origin and are not assumed.',
+    description: 'Compare the estimated US import tariff for ONE HTS code across several origin countries side by side (e.g. China vs Vietnam vs Mexico vs India), for sourcing and "China plus one" decisions. For each origin returns the total current rate, the layers that make it up (MFN base, Section 301 China, Section 232 by HTS line, Section 301 Brazil, 2026 Section 301 forced-labor tariff) and the rate after the Section 301 China exclusions end (through 11:59 p.m. ET on 9 Jan 2027 per the Federal Register, FR Doc. 2026-22925), sorted lowest first, with the dollar duty when an annual import value is given. Estimates only; preferential rates (USMCA, FTAs) depend on rules of origin and are not assumed.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -189,7 +188,7 @@ export const TOOLS = [
         },
         date: {
           type: 'string',
-          description: 'Optional. Entry date YYYY-MM-DD; the rate in force on that date is returned (e.g. "2026-11-09" vs "2026-11-10" to see the Section 301 exclusion end and the maritime duties). Default: today in US Eastern time.',
+          description: 'Optional. Entry date YYYY-MM-DD; the rate in force on that date is returned (e.g. "2027-01-09" vs "2027-01-10" to see the Section 301 exclusion end and the maritime duties). Default: today in US Eastern time.',
         },
       },
       required: ['hts_code'],

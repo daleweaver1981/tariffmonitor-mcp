@@ -46,11 +46,11 @@ test('initialize negotiates a standard protocol version', async () => {
   assert.equal((await rpc(FREE, '/mcp-free', { jsonrpc: '2.0', method: 'notifications/initialized' })).status, 202);
 });
 
-test('tools/list serves the four tools with both exclusion-end wordings', async () => {
+test('tools/list serves the four tools with the current exclusion end', async () => {
   const j = await (await rpc(FREE, '/mcp-free', { jsonrpc: '2.0', id: 2, method: 'tools/list' })).json();
   assert.deepEqual(j.result.tools.map((t) => t.name), ['lookup_hts_code', 'calculate_tariff', 'classify_product', 'compare_origins']);
   const co = j.result.tools.find((t) => t.name === 'compare_origins').description;
-  assert.match(co, /9 Nov 2026/); assert.match(co, /10 Nov 2026/); assert.match(co, /2025-21671/);
+  assert.match(co, /9 Jan 2027/); assert.match(co, /2026-22925/); assert.doesNotMatch(co, /2025-21671/);
 });
 
 test('GET is 405, unknown path is 404', async () => {
