@@ -31,6 +31,12 @@ VM100_HTML = 'adcreator:~/adcreator-ai/public/tariffs-november-10-2026.html'
 VM100_JSON = 'adcreator:~/adcreator-ai/public/data/tariffs-november-10-2026.json'
 INDEXNOW_KEY = '102914a195884c93f56ea4fa819866f3'
 # Federal Register documents already read and reflected in the page text (checked 2026-11-03).
+# What a notice on the alert list does, read from its text (keeper 2026-11-09). Shown in the alert in plain words
+# until the page body is rewritten for it.
+NOTICE_EFFECT = {
+    '2026-22925': 'USTR extended all 178 exclusions "through 11:59 p.m. eastern time on January 9, 2027". They do not end on 9 November 2026.',
+    '2026-22867': 'USTR further suspended the maritime action "through 11:59 p.m. Eastern Time on January 9, 2027". Headings 9903.91.12 and 9903.91.14 do not apply from 10 November 2026.',
+}
 KNOWN_FR = {'2025-21671', '2025-19873', '2025-19839', '2025-19568', '2026-21755', '2026-20511', '2026-17925', '2026-20510'}
 SRC = {
     'excl': ('FR Doc. 2025-21671, 90 FR 55232 (1 Dec 2025)', 'https://www.federalregister.gov/documents/2025/12/01/2025-21671/notice-of-product-exclusion-extensions-chinas-acts-policies-and-practices-related-to-technology'),
@@ -253,8 +259,15 @@ def render(rows, rev, updates, built):
     upd_html = ''
     if updates:
         li = ''.join('<li><strong>%s</strong>: <a href="%s" rel="noopener">%s</a> (FR Doc. %s%s)</li>' % (esc(u['date']), esc(u['url']), esc(u['title']), esc(u['document_number']), ', on public inspection' if u['public_inspection'] else '') for u in updates)
-        upd_html = ('<div class="alert"><strong>New Federal Register notice since this page was written.</strong> It may extend or change the dates below. '
-                    'Read it before relying on any row here; this page will be rewritten to match it.<ul>%s</ul></div>' % li)
+        eff = [NOTICE_EFFECT[u['document_number']] for u in updates if u['document_number'] in NOTICE_EFFECT]
+        if eff:
+            upd_html = ('<div class="alert"><strong>Update: the dates on this page have moved.</strong> %s '
+                        'So on 10 November 2026 these rates do not change. The rises in the table below now apply to entries on or after 10 January 2027, '
+                        'unless USTR acts again; the text further down still describes the old 9 November dates and will be rewritten.<ul>%s</ul></div>'
+                        % (' '.join(esc(e) for e in eff), li))
+        else:
+            upd_html = ('<div class="alert"><strong>New Federal Register notice since this page was written.</strong> It may extend or change the dates below. '
+                        'Read it before relying on any row here; this page will be rewritten to match it.<ul>%s</ul></div>' % li)
     def row_html(r):
         if r['status'] == 'computed':
             before, after = pct(r['rate_before']), pct(r['rate_after'])
