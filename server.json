@@ -1,17 +1,19 @@
 {
   "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
   "name": "io.github.daleweaver1981/tariffmonitor-mcp",
-  "description": "US import tariffs: HTS lookup, stacked rate (MFN+301+232 by line+forced-labor), compare origins.",
+  "title": "Tariff Monitor: US Import Duty & HTS Lookup",
+  "description": "US import tariffs: classify to HTS code, stacked rate (MFN+301+232+forced-labor), compare origins.",
+  "websiteUrl": "https://adcreator-ai.com/tariffs/calculator",
   "repository": {
     "url": "https://github.com/daleweaver1981/tariffmonitor-mcp",
     "source": "github"
   },
-  "version": "1.4.4",
+  "version": "1.6.0",
   "packages": [
     {
       "registryType": "npm",
       "identifier": "tariffmonitor-mcp",
-      "version": "1.4.4",
+      "version": "1.6.0",
       "transport": {
         "type": "stdio"
       }
