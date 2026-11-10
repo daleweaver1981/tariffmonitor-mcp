@@ -312,7 +312,7 @@ def render(rows, rev, updates, built):
 <meta charset="utf-8">{psalm}
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>What Changes on 10 Nov 2026? Nothing: Section 301 Rises Moved to 10 Jan 2027</title>
-<meta name="description" content="{esc(desc[:155].rsplit(' ', 1)[0])}">
+<meta name="description" content="{esc(desc if len(desc) <= 155 else desc[:155].rsplit(' ', 1)[0])}">
 <link rel="canonical" href="{URL}">
 <meta property="og:title" content="{esc(title)}">
 <meta property="og:description" content="{esc(desc)}">
