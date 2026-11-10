@@ -79,7 +79,7 @@ test('unparsable model output falls back to text-match rank, all low, and says s
 test('empty input and bad origin are rejected with a clear message', async () => {
   assert.equal((await classifyProduct({}, deps('{}'))).isError, true);
   assert.equal((await classifyProduct({ description: 'ab' }, deps('{}'))).isError, true);
-  const bad = await classifyProduct({ description: 'cotton t-shirt', origin_country: 'China' }, deps('{}'));
+  const bad = await classifyProduct({ description: 'cotton t-shirt', origin_country: 'Atlantis' }, deps('{}'));
   assert.equal(bad.isError, true);
   assert.match(text(bad), /ISO-2/);
 });

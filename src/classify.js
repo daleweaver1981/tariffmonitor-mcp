@@ -11,6 +11,7 @@
 //   3. a self-hosted model picks and ranks among those candidates and must quote their description.
 //      Any code that is not in the retrieved set is rejected here, in code.
 //   4. duty for an optional origin comes from the existing rate logic (fetchRate), passed in as a dependency.
+import { toIso2 } from './countries.js';
 import dns from 'node:dns';
 import https from 'node:https';
 import net from 'node:net';
@@ -342,7 +343,7 @@ export async function classifyProduct(args, deps) {
   if (!text && !hasImage) return err('Give either description (a product description or invoice line) or a photo (image_url, or image_base64), up to 1024 px.');
   if (text && text.length < 3 && !hasImage) return err('description must be at least 3 characters.');
   let origin = null;
-  for (const k of ORIGIN_KEYS) if (args[k]) { origin = String(args[k]).trim().toUpperCase(); break; }
+  for (const k of ORIGIN_KEYS) if (args[k]) { origin = toIso2(args[k]); break; }
   if (origin && !/^[A-Z]{2}$/.test(origin)) return err(`origin_country must be an ISO-2 code (e.g. CN, VN, MX); got "${origin.slice(0, 30)}".`);
 
   try {

@@ -14,6 +14,7 @@
 // on another host and is not ours to change for this, so both fallbacks below are client-side —
 // and each one STATES what it did. A silent substitution would be answering a different question.
 
+import { toIso2 } from './countries.js';
 import { matchAlias } from './aliases.js';
 import { classifyProduct, defaultChat } from './classify.js';
 
@@ -369,7 +370,7 @@ export async function callTool(name, args = {}) {
   if (name === 'calculate_tariff') {
     const hts = String(pick(args, ['hts_code', 'hts', 'code', 'htsCode'])?.value || '').replace(/[^0-9]/g, '');
     const originArg = pick(args, ORIGIN_ALIASES);
-    const countryRaw = String(originArg ? originArg.value : 'CN').trim().toUpperCase();
+    const countryRaw = toIso2(originArg ? originArg.value : 'CN');
     const country = countryRaw.slice(0, 2);
     const originNote = originArg ? '' : ' (no origin_country given, so China was assumed; pass origin_country for another origin)';
     const vol = Number(args.annual_import_value_usd) || 0;
@@ -419,7 +420,7 @@ export async function callTool(name, args = {}) {
     // Say it plainly when the answer is for a different code than the one asked for. The rate is
     // right for the code named on the first line, and the caller must be able to see that.
     const resolvedNote = (r.used && r.used !== r.requested)
-      ? `Note: ${r.requested} is not in the schedule. This rate is for heading ${r.used}, resolved to ${d.hts10}.\n\n`
+      ? `Note: ${r.requested} is not a line in the schedule. The rate below is for heading ${r.used}; the description shown is only the first statistical line listed under it (${d.hts10}), not necessarily your goods. Statistical suffixes can differ in Section 232 and 301 coverage, so confirm the exact line with lookup_hts_code ${r.used}.\n\n`
       : '';
 
     const text = [
@@ -452,7 +453,7 @@ export async function callTool(name, args = {}) {
     const originsArg = pick(args, ORIGINS_ALIASES);
     const originsVal = originsArg ? (Array.isArray(originsArg.value) ? originsArg.value : String(originsArg.value).split(/[\s,;]+/).filter(Boolean)) : null;
     const raw = originsVal && originsVal.length ? originsVal : ['CN', 'VN', 'MX', 'IN', 'TH'];
-    const countries = [...new Set(raw.map((c) => String(c).trim().toUpperCase()))];
+    const countries = [...new Set(raw.map((c) => toIso2(c)))];
     const bad = countries.filter((c) => !/^[A-Z]{2}$/.test(c));
     if (bad.length) {
       return { content: [{ type: 'text', text: `Not ISO-2 country codes: ${bad.join(', ')}. Use codes such as CN, VN, MX, IN, TH, KR, TW, DE, JP.` }], isError: true };
@@ -489,7 +490,7 @@ export async function callTool(name, args = {}) {
     const failed = results.filter((x) => !(x.r.d && x.r.d.ok)).map((x) => x.c);
     const notices = [...new Set(okRows.flatMap(({ r }) => [...nov10Lines(r.d), ...dedupNotices(r.d.notices)]))];
     const resolvedNote = (first.used && first.used !== first.requested)
-      ? `Note: ${first.requested} is not in the schedule. Rates are for heading ${first.used}, resolved to ${first.d.hts10}.\n\n` : '';
+      ? `Note: ${first.requested} is not a line in the schedule. Rates are for heading ${first.used}; the description shown is only the first statistical line listed under it (${first.d.hts10}), not necessarily your goods. Confirm the exact line with lookup_hts_code ${first.used}.\n\n` : '';
     const text = [
       `${resolvedNote}HTS ${first.d.hts10} — ${fullDesc(first.d)}`,
       ...(first.d.data_as_of ? [`Data checked: ${first.d.data_as_of}`] : []),
