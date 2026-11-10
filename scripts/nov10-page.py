@@ -291,7 +291,7 @@ def render(rows, rev, updates, built):
     trs = ''.join(row_html(r) for r in mar + ex)
     s = SRC
     title = 'What changes on 10 Nov 2026: nothing. The Section 301 rises moved to 10 Jan 2027'
-    desc = ('Nothing changes on 10 Nov 2026: USTR extended the 178 Section 301 China exclusions and the maritime duty suspension through 9 Jan 2027. Searchable list of HTS codes whose duty rises from 10 Jan 2027.')
+    desc = ('Nothing changes on 10 Nov 2026: USTR extended the 178 Section 301 China exclusions and the maritime duty suspension to 9 Jan 2027. HTS codes and rates.')
     ld = {'@context': 'https://schema.org', '@graph': [
         {'@type': 'Article', '@id': URL + '#article', 'headline': title, 'description': desc, 'url': URL, 'mainEntityOfPage': URL,
          'datePublished': '2026-11-03', 'dateModified': built[:10], 'inLanguage': 'en-US',
