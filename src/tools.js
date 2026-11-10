@@ -69,6 +69,7 @@ function noRateText(hts, d) {
 
 // A multi-word description finds nothing upstream, so retry the individual words, longest first —
 // the longest token is usually the most specific noun. Reports what was actually searched.
+const EXTRA_STOP = new Set(['with', 'from', 'that', 'this', 'other', 'for', 'and', 'made', 'used', 'piece', 'pieces', 'pack', 'size']);
 async function searchHts(query) {
   const first = await apiFetch('/hts/search?q=' + encodeURIComponent(query));
   if (first.ok && first.results?.length) return { data: first, searched: query, fellBackFrom: null };
@@ -332,8 +333,12 @@ export async function callTool(name, args = {}) {
           + (rr.length > 6 ? `\n(${rr.length - 6} more under ${x.alt.heading})` : '');
       }).join('');
       const aliasCodes = new Set([...aliasData.results, ...altData.flatMap((x) => x.data?.results || [])].map((r) => r.hts10));
+      // 2026-11-10: the backend search matches loosely ("screw cap" bottle -> 6505 hats). Keep an extra code only when its
+      // description shares at least half of the query's content words, so the heading below stays true.
+      const qWords = [...new Set(String(found.searched || '').toLowerCase().split(/[^a-z]+/).filter((w) => w.length >= 4 && !EXTRA_STOP.has(w)))];
+      const shares = (r) => { if (!qWords.length) return true; const d = lineDesc(r).toLowerCase(); return qWords.filter((w) => d.includes(w)).length * 2 >= qWords.length; };
       const extra = (data.ok ? data.results || [] : [])
-        .filter((r) => !aliasCodes.has(r.hts10)).slice(0, 6)
+        .filter((r) => !aliasCodes.has(r.hts10) && shares(r)).slice(0, 6)
         .map((r) => `${r.hts10}  ${lineDesc(r)}`).join('\n');
       const text = `"${alias.term}" is normally classified under HTS ${alias.heading}: ${alias.label}${alias.label.endsWith('...') ? '' : '.'} `
         + 'A plain keyword search of the schedule misses or mislabels this product, so these codes come from that heading.\n\n'
