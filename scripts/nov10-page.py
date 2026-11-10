@@ -37,12 +37,14 @@ NOTICE_EFFECT = {
     '2026-22925': 'USTR extended all 178 exclusions "through 11:59 p.m. eastern time on January 9, 2027". They do not end on 9 November 2026.',
     '2026-22867': 'USTR further suspended the maritime action "through 11:59 p.m. Eastern Time on January 9, 2027". Headings 9903.91.12 and 9903.91.14 do not apply from 10 November 2026.',
 }
-KNOWN_FR = {'2025-21671', '2025-19873', '2025-19839', '2025-19568', '2026-21755', '2026-20511', '2026-17925', '2026-20510'}
+KNOWN_FR = {'2026-22925', '2026-22867', '2025-21671', '2025-19873', '2025-19839', '2025-19568', '2026-21755', '2026-20511', '2026-17925', '2026-20510'}
 SRC = {
     'excl': ('FR Doc. 2025-21671, 90 FR 55232 (1 Dec 2025)', 'https://www.federalregister.gov/documents/2025/12/01/2025-21671/notice-of-product-exclusion-extensions-chinas-acts-policies-and-practices-related-to-technology'),
     'mar_action': ('FR Doc. 2025-19568, 90 FR 48320 (16 Oct 2025)', 'https://www.federalregister.gov/documents/2025/10/16/2025-19568/notice-of-modification-and-proposed-modification-of-section-301-action-chinas-targeting-of-the'),
     'mar_susp': ('FR Doc. 2025-19873, 90 FR 50947 (13 Nov 2025)', 'https://www.federalregister.gov/documents/2025/11/13/2025-19873/notice-of-modification-of-section-301-action-chinas-targeting-of-the-maritime-logistics-and'),
     'mar_rfc': ('FR Doc. 2026-21755, 91 FR 67388 (26 Oct 2026)', 'https://www.federalregister.gov/documents/2026/10/26/2026-21755/request-for-comments-on-further-suspension-of-section-301-action-chinas-targeting-of-the-maritime'),
+    'excl_ext': ('FR Doc. 2026-22925 (filed for public inspection 9 Nov 2026; Federal Register 10 Nov 2026)', 'https://www.federalregister.gov/public-inspection/2026-22925/product-exclusion-extensions-chinas-acts-policies-and-practices-related-to-technology-transfer'),
+    'mar_ext': ('FR Doc. 2026-22867 (filed for public inspection 9 Nov 2026; Federal Register 10 Nov 2026)', 'https://www.federalregister.gov/public-inspection/2026-22867/section-301-action-chinas-targeting-of-the-maritime-logistics-and-shipbuilding-sectors-for-dominance'),
     'ch99': ('HTSUS 2026 chapter 99 (USITC, current revision)', 'https://hts.usitc.gov/reststop/file?release=currentRelease&filename=Chapter%2099'),
 }
 
@@ -86,14 +88,16 @@ def heading_text(L, code):
 def verify_headings(L):
     rev = re.search(r'Harmonized Tariff Schedule of the United States (Revision \d+ \(\d{4}\)|\(\d{4}\) Revision \d+)', '\n'.join(L[:400]))
     checks = {
-        '9903.88.69': 'through November 9, 2026', '9903.88.70': 'through November 9, 2026',
-        '9903.91.12': 'on or after November 10, 2026', '9903.91.14': 'on or after November 10, 2026',
+        # Old wording, or the wording after FR Docs. 2026-22925 (88.69/88.70: "January 9, 2027") and 2026-22867
+        # (91.12/91.14: "January 10, 2027"). Any other text still fails (keeper 2026-11-10).
+        '9903.88.69': ('through November 9, 2026', 'through January 9, 2027'), '9903.88.70': ('through November 9, 2026', 'through January 9, 2027'),
+        '9903.91.12': ('November 10, 2026', 'January 10, 2027'), '9903.91.14': ('November 10, 2026', 'January 10, 2027'),
     }
     found = {}
     for code, phrase in checks.items():
         t = heading_text(L, code)
         found[code] = t
-        if phrase not in t: fail('HTSUS chapter 99 heading %s no longer reads "%s" (text now: %s). An extension or change may have been published.' % (code, phrase, t[:300]))
+        if not any(ph in t for ph in phrase): fail('HTSUS chapter 99 heading %s reads neither "%s" (text now: %s). An extension or change may have been published.' % (code, '" nor "'.join(phrase), t[:300]))
     if '100%' not in found['9903.91.12'] or '100%' not in found['9903.91.14']: fail('9903.91.12/9903.91.14 no longer show +100%.')
     return rev.group(1) if rev else 'current revision'
 
@@ -189,7 +193,7 @@ def build_rows(excl):
         hd = x['excluded_from']
         for code in x['codes']:
             d = engine(code)
-            r = {'kind': 'exclusion', 'hts': fmt(code), 'program': 'Section 301 China exclusion ends (%s, %s)' % (LIST[hd], hd),
+            r = {'kind': 'exclusion', 'hts': fmt(code), 'program': 'Section 301 China exclusion, extended through 9 Jan 2027 (%s, %s)' % (LIST[hd], hd),
                  'source_note': 'U.S. note %s item (%d); heading %s' % ('20(www)' if x['sub'] == 'www' else '20(vvv)' + x['sub'][3:], x['n'], '9903.88.70' if x['sub'] == 'www' else '9903.88.69'),
                  'description': x['description'] or short_desc(d), 'whole_number': not x['description'], 'rise_pp': RATE[hd]}
             xe = d.get('section_301_exclusion') if d.get('ok') else None
@@ -207,7 +211,7 @@ def build_rows(excl):
             rows.append(r)
     for code, hd, desc in MARITIME:
         d = engine(code)
-        r = {'kind': 'maritime', 'hts': fmt(code), 'program': 'Section 301 maritime action, suspension ends (%s, +100%%)' % hd,
+        r = {'kind': 'maritime', 'hts': fmt(code), 'program': 'Section 301 maritime action, suspended through 9 Jan 2027 (%s, +100%%)' % hd,
              'source_note': 'heading %s; U.S. note 31(%s)' % (hd, 'k)(i' if hd == '9903.91.12' else 'l'), 'description': desc, 'rise_pp': 100.0}
         if d.get('ok'):
             d2 = engine(code, d['maritime_effective_date'])
@@ -274,32 +278,32 @@ def render(rows, rev, updates, built):
             if r.get('qualifier') == 'up_to': after = 'up to ' + after
             rise = r['rate_after'] - r['rate_before']
             chg = '+%s pts' % (('%.2f' % rise).rstrip('0').rstrip('.')) if abs(rise) > 0.005 else 'no change'
-            if r.get('from_date') and r['from_date'] != '2026-11-10': chg += ' from ' + r['from_date']
+            if r.get('from_date') and r['from_date'] != '2027-01-10': chg += ' from ' + r['from_date']
         else:
             before, after, chg = 'not in the current schedule', 'check', '+%s pts on the list duty' % (('%.1f' % r['rise_pp']).rstrip('0').rstrip('.'))
         scope = ' <span class="tag">whole number</span>' if r.get('whole_number') else (' <span class="tag">only goods matching this description</span>' if r['kind'] == 'exclusion' else ' <span class="tag">scope: see note</span>')
         calc = '/tariffs/calculator?hts=%s&country=CN&utm_source=nov10page&utm_medium=organic&utm_campaign=tariffmonitor-202611-nov10&utm_content=row' % r['hts'].replace('.', '')
         return ('<tr data-k="%s"><td data-l="HTS"><a href="%s">%s</a></td><td data-l="Product">%s%s<div class="src">%s</div></td>'
-                '<td data-l="Before 10 Nov">%s</td><td data-l="From 10 Nov">%s</td><td data-l="Change">%s</td></tr>') % (
+                '<td data-l="Now (to 9 Jan 2027)">%s</td><td data-l="From 10 Jan 2027">%s</td><td data-l="Change">%s</td></tr>') % (
             esc((r['hts'] + ' ' + r['description'] + ' ' + r['program']).lower()), esc(calc), esc(r['hts']), esc(r['description']), scope,
             esc(r['program'] + '; ' + r['source_note'] + ('; ' + r['adj'] if r.get('adj') else '')), esc(before), esc(after), esc(chg))
     mar = [r for r in rows if r['kind'] == 'maritime']; ex = [r for r in rows if r['kind'] == 'exclusion']
     trs = ''.join(row_html(r) for r in mar + ex)
     s = SRC
-    title = 'What changes on 10 Nov 2026: HTS codes whose US duty rises'
-    desc = ('On 10 Nov 2026 the 178 Section 301 China product exclusions end and the one-year suspension of the 100% maritime Section 301 duties on intermodal chassis and ship-to-shore cranes runs out, unless USTR extends them. Searchable list of affected HTS codes with rates.')
+    title = 'What changes on 10 Nov 2026: nothing. The Section 301 rises moved to 10 Jan 2027'
+    desc = ('Nothing changes on 10 Nov 2026: USTR extended the 178 Section 301 China exclusions and the maritime duty suspension through 9 Jan 2027. Searchable list of HTS codes whose duty rises from 10 Jan 2027.')
     ld = {'@context': 'https://schema.org', '@graph': [
         {'@type': 'Article', '@id': URL + '#article', 'headline': title, 'description': desc, 'url': URL, 'mainEntityOfPage': URL,
          'datePublished': '2026-11-03', 'dateModified': built[:10], 'inLanguage': 'en-US',
          'author': {'@type': 'Organization', 'name': '0xpi', 'url': 'https://0xpi.com'}, 'publisher': {'@type': 'Organization', 'name': '0xpi', 'url': 'https://0xpi.com'},
          'about': ['Section 301 tariffs on China', 'Harmonized Tariff Schedule of the United States', 'Section 301 product exclusions'],
          'citation': [{'@type': 'CreativeWork', 'name': v[0], 'url': v[1]} for v in s.values()]},
-        {'@type': 'Dataset', '@id': URL + '#dataset', 'name': 'HTS codes whose US duty rises on 10 November 2026 (products of China)', 'description': 'Statistical reporting numbers named in the 178 Section 301 China product exclusions that end after 9 Nov 2026 (HTSUS ch. 99 U.S. note 20(vvv) and 20(www)) and the lines covered by headings 9903.91.12 and 9903.91.14 from 10 Nov 2026, with stacked-rate estimates from the Tariff Exposure Monitor engine. Estimates, not legal advice.',
-         'url': URL, 'dateModified': built[:10], 'temporalCoverage': '2026-11-10/..', 'creator': {'@type': 'Organization', 'name': '0xpi', 'url': 'https://0xpi.com'},
-         'isBasedOn': [s['ch99'][1], s['excl'][1], s['mar_action'][1], s['mar_susp'][1]], 'isAccessibleForFree': True,
+        {'@type': 'Dataset', '@id': URL + '#dataset', 'name': 'HTS codes whose US duty rises from 10 January 2027 (products of China)', 'description': 'Statistical reporting numbers named in the 178 Section 301 China product exclusions, extended through 9 Jan 2027 by FR Doc. 2026-22925 (HTSUS ch. 99 U.S. note 20(vvv) and 20(www)), and the lines covered by headings 9903.91.12 and 9903.91.14 from 10 Jan 2027 under FR Doc. 2026-22867, with stacked-rate estimates from the Tariff Exposure Monitor engine. Estimates, not legal advice.',
+         'url': URL, 'dateModified': built[:10], 'temporalCoverage': '2027-01-10/..', 'creator': {'@type': 'Organization', 'name': '0xpi', 'url': 'https://0xpi.com'},
+         'isBasedOn': [s['ch99'][1], s['excl_ext'][1], s['mar_ext'][1], s['excl'][1], s['mar_action'][1], s['mar_susp'][1]], 'isAccessibleForFree': True,
          'distribution': [{'@type': 'DataDownload', 'encodingFormat': 'application/json', 'contentUrl': 'https://adcreator-ai.com/public/data/tariffs-november-10-2026.json'}]},
         {'@type': 'BreadcrumbList', 'itemListElement': [{'@type': 'ListItem', 'position': 1, 'name': 'Tariff calculator', 'item': 'https://adcreator-ai.com/tariffs/calculator'},
-                                                         {'@type': 'ListItem', 'position': 2, 'name': 'What changes on 10 Nov 2026', 'item': URL}]}]}
+                                                         {'@type': 'ListItem', 'position': 2, 'name': 'What changes on 10 Nov 2026 (moved to 10 Jan 2027)', 'item': URL}]}]}
     psalm = open(os.path.join(ROOT, 'scripts', 'psalm-snippet.html')).read().strip()
     a = lambda k: '<a href="%s" rel="noopener">%s</a>' % (esc(s[k][1]), esc(s[k][0]))
     return f'''<!DOCTYPE html>
@@ -307,7 +311,7 @@ def render(rows, rev, updates, built):
 <head>
 <meta charset="utf-8">{psalm}
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>What Changes on 10 Nov 2026: HTS Codes Whose Duty Rises</title>
+<title>What Changes on 10 Nov 2026? Nothing: Section 301 Rises Moved to 10 Jan 2027</title>
 <meta name="description" content="{esc(desc[:155].rsplit(' ', 1)[0])}">
 <link rel="canonical" href="{URL}">
 <meta property="og:title" content="{esc(title)}">
@@ -358,45 +362,45 @@ footer{{border-top:1px solid var(--line);margin-top:48px;padding-top:18px}}
 <body>
 <div class="topbar"><a href="/tariffs/calculator">Tariff Exposure Monitor</a><a href="/tariffs/calculator" style="color:var(--muted);font-weight:600">Free tariff calculator</a></div>
 <main class="wrap">
-<h1>What changes on 10 Nov 2026: HTS codes whose US duty rises</h1>
+<h1>What changes on 10 Nov 2026: nothing. The Section 301 duty rises moved to 10 Jan 2027</h1>
 {upd_html}
 <div class="answer">
-<p><strong>Short answer.</strong> Two Section 301 measures on products of China {'were' if passed else 'are'} set to end on the night of 9 to 10 November 2026, unless USTR extends them:</p>
+<p><strong>Short answer: nothing changes on 10 November 2026.</strong> Two Section 301 measures on products of China were due to end on the night of 9 to 10 November 2026. On 9 November 2026 USTR extended both by two months, so the duty rises in the table below now apply to entries on or after 10 January 2027, unless USTR acts again:</p>
 <ul>
-<li><strong>The 178 Section 301 product exclusions end.</strong> They run "through 11:59 p.m. eastern daylight time on November 9, 2026" ({a('excl')}). From 10 November, goods that used an exclusion pay the normal List 1, 2 or 3 duty (+25%) or List 4A duty (+7.5%) again.</li>
-<li><strong>The one-year suspension of the maritime Section 301 action runs out.</strong> USTR suspended it "through 11:59 p.m. Eastern Standard Time on November 9, 2026" ({a('mar_susp')}). Chapter 99 headings 9903.91.12 (intermodal chassis and parts) and 9903.91.14 (ship-to-shore gantry cranes) add +100% for entries on or after 10 November 2026 ({a('mar_action')}; {a('ch99')}).</li>
+<li><strong>The 178 Section 301 product exclusions are extended.</strong> USTR extended all 178 exclusions "through 11:59 p.m. eastern time on January 9, 2027" ({a('excl_ext')}). Before that they ran "through 11:59 p.m. eastern daylight time on November 9, 2026" ({a('excl')}). From 10 January 2027, unless extended again, goods that use an exclusion pay the normal List 1, 2 or 3 duty (+25%) or List 4A duty (+7.5%) again.</li>
+<li><strong>The maritime Section 301 action stays suspended.</strong> USTR further suspended it "through 11:59 p.m. Eastern Time on January 9, 2027" ({a('mar_ext')}). Chapter 99 headings 9903.91.12 (intermodal chassis and parts) and 9903.91.14 (ship-to-shore gantry cranes), which add +100%, now start for entries on or after 10 January 2027 instead of 10 November 2026 ({a('mar_action')}; {a('mar_susp')}).</li>
 </ul>
-<p>Below: {n_ex_codes} statistical numbers named in the exclusions plus {len(mar)} chassis and crane lines, with today's estimated rate and the rate from 10 November.</p>
+<p>Below: {n_ex_codes} statistical numbers named in the exclusions plus {len(mar)} chassis and crane lines, with the estimated rate now and the rate from 10 January 2027.</p>
 <a class="cta" href="/tariffs/calculator?utm_source=nov10page&amp;utm_medium=organic&amp;utm_campaign=tariffmonitor-202611-nov10&amp;utm_content=hero">Check your HTS code in the free calculator</a>
 <p class="muted">Free, no signup. The calculator gives an estimate; the official rate is in the <a href="https://hts.usitc.gov/" rel="noopener">HTSUS</a>.</p>
 </div>
 
 <h2>Could the date move?</h2>
-<p><strong>{'Yes. A new notice is listed at the top of this page; read it first.' if updates else 'Yes, both measures can be extended, and neither extension is final as of ' + esc(built[:10]) + '.'}</strong></p>
+<p><strong>{'Yes. A new notice is listed at the top of this page; read it first.' if updates else 'Yes. It has already moved once, from 10 November 2026 to 10 January 2027. USTR can extend again or let both measures lapse; as of ' + esc(built[:10]) + ' we found no Federal Register notice beyond 9 January 2027.'}</strong></p>
 <ul>
-<li><strong>Maritime duties (chassis, cranes):</strong> on 26 October 2026 USTR <em>proposed</em> suspending them for two more months, through 11:59 p.m. Eastern Time on 9 January 2027, and took comments until 30 October ({a('mar_rfc')}). A proposal is not a decision. If USTR publishes the final notice, the chassis and crane rows below will not rise on 10 November.</li>
-<li><strong>Product exclusions:</strong> we found no Federal Register notice extending them beyond 9 November 2026. USTR has extended them several times before; the last extension was announced on 26 November 2025, three days before the earlier end date, and published in the Federal Register on 1 December 2025. That is history, not a forecast.</li>
+<li><strong>Maritime duties (chassis, cranes):</strong> on 26 October 2026 USTR proposed suspending them for two more months and took comments until 30 October ({a('mar_rfc')}). The final notice ({a('mar_ext')}) suspends them through 11:59 p.m. Eastern Time on 9 January 2027.</li>
+<li><strong>Product exclusions:</strong> USTR has extended them several times. The extension before this one was announced on 26 November 2025, three days before the earlier end date, and published in the Federal Register on 1 December 2025 ({a('excl')}). This one was filed on 9 November 2026, the last day. That is history, not a forecast.</li>
 </ul>
 <p>This page checks the Federal Register every day. If a new notice appears, it is shown at the top of this page the same day.</p>
 
 <h2>Search the affected HTS codes</h2>
-<p class="muted">Products of China only. "Before 10 Nov" for an exclusion row is the estimated rate when the exclusion is claimed (heading 9903.88.69 or 9903.88.70). Many exclusions cover only goods matching a written description, not every product under the number; those rows are tagged. Rates are stacked estimates from our engine (MFN + Section 301 + Section 232 + the 2026 Section 301 forced-labor duty); built {esc(built)} from {esc(rev)}.</p>
+<p class="muted">Products of China only. "Now (to 9 Jan 2027)" for an exclusion row is the estimated rate when the exclusion is claimed (heading 9903.88.69 or 9903.88.70). Many exclusions cover only goods matching a written description, not every product under the number; those rows are tagged. Rates are stacked estimates from our engine (MFN + Section 301 + Section 232 + the 2026 Section 301 forced-labor duty); built {esc(built)} from {esc(rev)}.</p>
 <label for="q" class="muted">Filter by HTS number or product word</label>
 <input type="search" id="q" placeholder="e.g. 8716, pump, 3926.90" autocomplete="off">
 <p class="muted" id="cnt"></p>
-<table><thead><tr><th>HTS</th><th>Product and source</th><th>Before 10 Nov</th><th>From 10 Nov</th><th>Change</th></tr></thead>
+<table><thead><tr><th>HTS</th><th>Product and source</th><th>Now (to 9 Jan 2027)</th><th>From 10 Jan 2027</th><th>Change</th></tr></thead>
 <tbody id="t">{trs}</tbody></table>
 
 <h2>How the figures are worked out</h2>
 <ul>
-<li><strong>Exclusion rows:</strong> both figures are our engine's answers for a product of China: "Before 10 Nov" is its rate for an entry on 9 November with the exclusion claimed (for an exclusion limited to a written description, the rate for goods matching it), "From 10 Nov" its rate once the exclusion has ended. You get the same figures from the calculator and the MCP tools with a query date. "Not in the current schedule" means chapter 99 still names a statistical number that is no longer a line in the HTSUS revision shown above.</li>
-<li><strong>Chassis and crane rows:</strong> headings 9903.91.12 and 9903.91.14 read "the duty provided in the applicable subheading + 100%". For the chassis lines, chapter 99 does not say how this combines with the List 3 duty they already pay, so "From 10 Nov" is labelled <em>up to</em>: both duties added. For ship-to-shore cranes, U.S. note 31(l)(i) says the +100% comes on top of the +25% under heading 9903.92.10, so that row is exact. Chassis means intermodal chassis, subassemblies and parts (U.S. note 31(k)(i)); dry van, refrigerated van and flatbed trailers are outside the scope. Crane rows cover ship-to-shore gantry cranes of China, with Chinese components, or made by a Chinese-owned company (U.S. note 31(l)); attested and grandfathered cranes fall under 9903.91.15 and 9903.91.16.</li>
+<li><strong>Exclusion rows:</strong> both figures are our engine's answers for a product of China: "Now" is its rate for an entry with the exclusion claimed (for an exclusion limited to a written description, the rate for goods matching it), "From 10 Jan 2027" its rate once the exclusion has ended. You get the same figures from the calculator and the MCP tools with a query date. "Not in the current schedule" means chapter 99 still names a statistical number that is no longer a line in the HTSUS revision shown above.</li>
+<li><strong>Chassis and crane rows:</strong> headings 9903.91.12 and 9903.91.14 read "the duty provided in the applicable subheading + 100%". For the chassis lines, chapter 99 does not say how this combines with the List 3 duty they already pay, so "From 10 Jan 2027" is labelled <em>up to</em>: both duties added. For ship-to-shore cranes, U.S. note 31(l)(i) says the +100% comes on top of the +25% under heading 9903.92.10, so that row is exact. Chassis means intermodal chassis, subassemblies and parts (U.S. note 31(k)(i)); dry van, refrigerated van and flatbed trailers are outside the scope. Crane rows cover ship-to-shore gantry cranes of China, with Chinese components, or made by a Chinese-owned company (U.S. note 31(l)); attested and grandfathered cranes fall under 9903.91.15 and 9903.91.16.</li>
 <li>The IEEPA reciprocal and fentanyl tariffs are not in these figures: the government stopped collecting them on 24 February 2026, after the Supreme Court ruling.</li>
 <li>These are estimates for planning, not a ruling. Confirm the classification and rate with CBP or a licensed customs broker.</li>
 </ul>
 
 <h2>Query any code from an AI agent (MCP) or the free endpoint</h2>
-<p>The same engine is an MCP server, <a href="https://github.com/daleweaver1981/tariffmonitor-mcp" rel="noopener">tariffmonitor-mcp</a>. Its <code>calculate_tariff</code> tool returns the rate stack for one HTS code and origin, and states the 9 November exclusion end. <code>compare_origins</code> compares 2 to 8 countries.</p>
+<p>The same engine is an MCP server, <a href="https://github.com/daleweaver1981/tariffmonitor-mcp" rel="noopener">tariffmonitor-mcp</a>. Its <code>calculate_tariff</code> tool returns the rate stack for one HTS code and origin, and states the 9 January 2027 exclusion end. <code>compare_origins</code> compares 2 to 8 countries.</p>
 <p><strong>Free hosted endpoint, no key:</strong> <code>https://adcreator-ai.com/mcp-free</code> (Streamable HTTP; 25 tool calls per IP per day).</p>
 <pre>claude mcp add --transport http tariffmonitor https://adcreator-ai.com/mcp-free</pre>
 <p>Or run it locally with no limit: <code>npx -y tariffmonitor-mcp</code>. The full dataset on this page is also available as JSON: <a href="/public/data/tariffs-november-10-2026.json">tariffs-november-10-2026.json</a>.</p>
