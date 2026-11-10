@@ -65,11 +65,11 @@ export const ALIASES = [
   {"terms":["polo shirt","polo shirts"],"prefix":"6105","heading":"6105","label":"Men's or boys' shirts, knitted or crocheted","alts":[{"prefix":"6106","heading":"6106","label":"Women's or girls' blouses and shirts, knitted or crocheted"}]},
   // 2026-11-01 (scout Run 261): "vacuum bottle" fell through to a one-word search and returned dishwashing
   // machinery (8422.20). A complete vacuum vessel is 9617.00; stainless and plastic body headings listed as alts.
-  {"terms":["vacuum bottle","vacuum bottles","vacuum flask","vacuum flasks","vacuum insulated bottle","vacuum insulated bottles","vacuum tumbler","vacuum tumblers","vacuum insulated tumbler","vacuum insulated tumblers","vacuum mug","vacuum mugs","vacuum insulated mug","vacuum insulated mugs"],"prefix":"961700","heading":"9617.00","label":"Vacuum flasks and other vacuum vessels, complete; parts thereof other than glass inners","alts":[{"prefix":"732393","heading":"7323.93","label":"Table, kitchen or other household articles of iron or steel: of stainless steel"},{"prefix":"392410","heading":"3924.10","label":"Tableware and kitchenware, of plastics"}]},
-  {"terms":["water bottle","water bottles","insulated bottle","insulated bottles","tumbler","tumblers","thermos"],"prefix":"732393","heading":"7323.93","label":"Table, kitchen or other household articles of iron or steel: of stainless steel","alts":[{"prefix":"961700","heading":"9617.00","label":"Vacuum flasks and other vacuum vessels, complete; parts thereof other than glass inners"},{"prefix":"392410","heading":"3924.10","label":"Tableware and kitchenware, of plastics"}]},
+  {"terms":["vacuum bottle","vacuum bottles","vacuum flask","vacuum flasks","vacuum insulated bottle","vacuum insulated bottles","vacuum insulated drinking bottle","vacuum insulated drinking bottles","vacuum insulated water bottle","vacuum insulated water bottles","vacuum tumbler","vacuum tumblers","vacuum insulated tumbler","vacuum insulated tumblers","vacuum mug","vacuum mugs","vacuum insulated mug","vacuum insulated mugs"],"prefix":"961700","heading":"9617.00","label":"Vacuum flasks and other vacuum vessels, complete; parts thereof other than glass inners","alts":[{"prefix":"732393","heading":"7323.93","label":"Table, kitchen or other household articles of iron or steel: of stainless steel"},{"prefix":"392410","heading":"3924.10","label":"Tableware and kitchenware, of plastics"}]},
+  {"terms":["water bottle","water bottles","drinking bottle","drinking bottles","insulated bottle","insulated bottles","tumbler","tumblers","thermos"],"prefix":"732393","heading":"7323.93","label":"Table, kitchen or other household articles of iron or steel: of stainless steel","alts":[{"prefix":"961700","heading":"9617.00","label":"Vacuum flasks and other vacuum vessels, complete; parts thereof other than glass inners"},{"prefix":"392410","heading":"3924.10","label":"Tableware and kitchenware, of plastics"}]},
   {"terms":["dress","dresses"],"unless":["shoe","shoes","shirt","shirts","boot","boots","pants","trousers","socks"],"prefix":"61044","heading":"6104.41-6104.49","label":"Women's or girls' dresses, knitted or crocheted","alts":[{"prefix":"62044","heading":"6204.41-6204.49","label":"Women's or girls' dresses, not knitted (woven)"}]},
   {"terms":["leggings","yoga pants"],"prefix":"61046","heading":"6104.61-6104.69","label":"Women's or girls' trousers, bib and brace overalls, breeches and shorts, knitted or crocheted"},
-  {"terms":["hat","hats","cap","caps","baseball cap","beanie","beanies"],"prefix":"650500","heading":"6505.00","label":"Hats and other headgear, knitted or crocheted, or made up from lace, felt or other textile fabric, in the piece"},
+  {"terms":["hat","hats","cap","caps","baseball cap","beanie","beanies"],"unless":["screw","bottle","bottles","jar","jars","lid","lids","pen","pens","flask","flasks","tumbler","tumblers","mug","mugs","cup","cups","tube","tubes","valve","valves","container","containers"],"prefix":"650500","heading":"6505.00","label":"Hats and other headgear, knitted or crocheted, or made up from lace, felt or other textile fabric, in the piece"},
   {"terms":["scarf","scarves"],"prefix":"611710","heading":"6117.10","label":"Shawls, scarves, mufflers, mantillas, veils and the like, knitted or crocheted","alts":[{"prefix":"6214","heading":"6214","label":"Shawls, scarves, mufflers, mantillas, veils and the like, not knitted"}]},
   {"terms":["gloves","mittens"],"prefix":"6116","heading":"6116","label":"Gloves, mittens and mitts, knitted or crocheted"},
   {"terms":["swimsuit","swimsuits","bikini","bikinis","swimwear"],"prefix":"611241","heading":"6112.41","label":"Women's or girls' swimwear, knitted or crocheted, of synthetic fibers"},
@@ -122,13 +122,15 @@ export const QUALIFIERS = new Set(('men mens man s women womens woman ladies lad
 // read as just "battery". `unless` words veto an alias ("dress shirt" is not a dress). Returns null
 // when no known term appears in the query.
 export function matchAlias(query) {
-  const norm = String(query || '').toLowerCase().replace(/[^a-z0-9-]+/g, ' ').trim();
+  // 2026-11-10: hyphens are spaces on both sides ("vacuum-insulated" = "vacuum insulated"; "t-shirt" still matches).
+  const norm = String(query || '').toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
   const q = ' ' + norm + ' ';
   const words = norm.split(' ').filter(Boolean);
   let best = null;
   for (const a of ALIASES) {
     if (a.unless && a.unless.some((w) => words.includes(w))) continue;
-    for (const t of a.terms) {
+    for (const t0 of a.terms) {
+      const t = t0.replace(/-/g, ' ');
       let hit;
       if (!a.exact) hit = q.includes(' ' + t + ' ');
       else if (norm === t) hit = true;
