@@ -75,7 +75,7 @@ function logCall(req, res, t0, info) {
     fs.appendFileSync(CALL_LOG, JSON.stringify({ ts: new Date().toISOString(), ip: req.headers['x-forwarded-for'] || req.socket.remoteAddress,
       ua: String(req.headers['user-agent'] || '').slice(0, 80), status: res.statusCode, ms: Date.now() - t0,
       method: info.method || null, tool: info.tool || null, ids, headerNames: Object.keys(req.headers).filter(h => h !== 'authorization'),
-      ...(info.endpoint ? { endpoint: info.endpoint, client_ip: info.ip || null, client: info.client || null, limited: info.limited || null } : {}) }) + '\n');
+      ...(info.endpoint ? { endpoint: info.endpoint, client_ip: info.ip || null, client: info.client || null, limited: info.limited || null, client_id_hash: info.clientIdHash || null } : {}) }) + '\n');
   } catch { /* logging must never break a call */ }
   if (info.activate) funnel.recordToolCall(req, { tool: info.tool, method: info.method, status: res.statusCode, ms: Date.now() - t0,
     ...(info.endpoint ? { endpoint: info.endpoint, ip: info.ip, ipHash: info.ipHash } : {}) });
@@ -196,6 +196,17 @@ const FREE_HOST = process.env.FREE_HOST || '10.0.0.105';
 const FREE_PORT = Number(process.env.FREE_PORT || 8792);
 const FREE_PER_IP_DAY = Number(process.env.FREE_PER_IP_DAY || 25);
 const FREE_GLOBAL_DAY = Number(process.env.FREE_GLOBAL_DAY || 500);
+// Per-client buckets (added 2026-11-14, scout run 295, for platform plugins whose cloud
+// runs every tenant's calls from a few shared IPs: one per-IP bucket would break the tool for
+// all of them at once). A caller may send `X-Client-Id: <8-64 of [A-Za-z0-9_-]>`. Valid ids get their
+// own FREE_PER_IP_DAY bucket instead of the IP's. The header is client-supplied, so it is NOT trusted:
+// all header traffic together is capped at FREE_CLIENT_CLASS_DAY (well below FREE_GLOBAL_DAY, so
+// rotating ids can only burn that class, never starve headerless callers), at most FREE_CLIENT_IDS_DAY
+// distinct ids are tracked per day (bounded state file), and a malformed id or an id past that cap
+// falls back to the per-IP bucket. The global cap still applies to everything.
+const FREE_CLIENT_CLASS_DAY = Number(process.env.FREE_CLIENT_CLASS_DAY || 200);
+const FREE_CLIENT_IDS_DAY = Number(process.env.FREE_CLIENT_IDS_DAY || 300);
+const CLIENT_ID_RE = /^[A-Za-z0-9_-]{8,64}$/;
 const FREE_PATH = '/mcp-free';
 const FREE_PUBLIC_URL = 'https://adcreator-ai.com/mcp-free';
 // The VM400 gateway holds 10.0.0.10 and 10.0.0.23 and connects to VM100 from 10.0.0.23 (checked 2026-10-25).
@@ -207,8 +218,9 @@ const VOIDNET_URL = 'https://www.openvoidnet.com/marketplace/tariffmonitor';
 const LIMIT_FILE = process.env.FREE_STATE || path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'data', 'free-limits.json');
 
 const utcDay = () => new Date().toISOString().slice(0, 10);
-let limits = { day: utcDay(), global: 0, perIp: {} };
-try { const l = JSON.parse(fs.readFileSync(LIMIT_FILE, 'utf8')); if (l.day === limits.day) limits = l; } catch { /* first run */ }
+const freshLimits = () => ({ day: utcDay(), global: 0, perIp: {}, clientClass: 0, perClient: {} });
+let limits = freshLimits();
+try { const l = JSON.parse(fs.readFileSync(LIMIT_FILE, 'utf8')); if (l.day === limits.day) limits = { ...freshLimits(), ...l }; } catch { /* first run */ }
 const saveLimits = () => { try { fs.mkdirSync(path.dirname(LIMIT_FILE), { recursive: true }); fs.writeFileSync(LIMIT_FILE, JSON.stringify(limits)); } catch {} };
 const ipHash = (ip) => crypto.createHash('sha256').update('tm-free:' + ip).digest('hex').slice(0, 16);
 
@@ -224,10 +236,30 @@ function freeClientIp(req) {
   return peer.replace(/^::ffff:/, '');
 }
 
+const clientHash = (cid) => crypto.createHash('sha256').update('tm-free-client:' + cid).digest('hex').slice(0, 16);
+/** The X-Client-Id header when well-formed, else null (caller then uses the per-IP bucket). */
+function freeClientId(req) {
+  const cid = String(req.headers['x-client-id'] || '').trim();
+  return CLIENT_ID_RE.test(cid) ? cid : null;
+}
+
 /** Counts one tools/call. Returns null when allowed, else {scope, limit}. */
-function takeFreeCall(ip) {
-  if (limits.day !== utcDay()) limits = { day: utcDay(), global: 0, perIp: {} };
+function takeFreeCall(ip, cid = null) {
+  if (limits.day !== utcDay()) limits = freshLimits();
   if (UNLIMITED_IP.test(ip)) return null;
+  if (cid) {
+    const ch = clientHash(cid);
+    const known = Object.prototype.hasOwnProperty.call(limits.perClient, ch);
+    if (known || Object.keys(limits.perClient).length < FREE_CLIENT_IDS_DAY) {
+      const cused = limits.perClient[ch] || 0;
+      if (cused >= FREE_PER_IP_DAY) return { scope: 'per-client', limit: FREE_PER_IP_DAY };
+      if (limits.clientClass >= FREE_CLIENT_CLASS_DAY) return { scope: 'client-class', limit: FREE_CLIENT_CLASS_DAY };
+      if (limits.global >= FREE_GLOBAL_DAY) return { scope: 'global', limit: FREE_GLOBAL_DAY };
+      limits.perClient[ch] = cused + 1; limits.clientClass += 1; limits.global += 1; saveLimits();
+      return null;
+    }
+    // id cap reached for today: an unseen id is treated as headerless.
+  }
   const h = ipHash(ip); const used = limits.perIp[h] || 0;
   if (used >= FREE_PER_IP_DAY) return { scope: 'per-ip', limit: FREE_PER_IP_DAY };
   if (limits.global >= FREE_GLOBAL_DAY) return { scope: 'global', limit: FREE_GLOBAL_DAY };
@@ -238,7 +270,7 @@ function takeFreeCall(ip) {
 const CORS = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Methods': 'POST, GET, OPTIONS',
-  'Access-Control-Allow-Headers': 'Content-Type, Accept, MCP-Protocol-Version, Mcp-Session-Id, Last-Event-ID',
+  'Access-Control-Allow-Headers': 'Content-Type, Accept, MCP-Protocol-Version, Mcp-Session-Id, Last-Event-ID, X-Client-Id',
   'Access-Control-Expose-Headers': 'MCP-Protocol-Version, Retry-After',
 };
 const fjson = (res, status, body, extra = {}) => json(res, status, body, { ...CORS, ...extra });
@@ -254,12 +286,14 @@ const FREE_INSTRUCTIONS = 'US import tariff data (free public endpoint, ' + FREE
 const freeServer = http.createServer(async (req, res) => {
   const t0 = Date.now();
   const ip = freeClientIp(req);
-  const info = { endpoint: 'free-remote', ip, ipHash: ipHash(ip) };
+  const cid = freeClientId(req);
+  const info = { endpoint: 'free-remote', ip, ipHash: ipHash(ip), ...(cid ? { clientIdHash: clientHash(cid) } : {}) };
   if (req.method === 'POST') res.on('finish', () => logCall(req, res, t0, info));
   const url = (req.url || '').split('?')[0];
   if (req.method === 'GET' && url === '/health') {
     return fjson(res, 200, { ok: true, server: SERVER_INFO, endpoint: FREE_PUBLIC_URL, tools: TOOLS.map((t) => t.name),
-      limits: { per_ip_day: FREE_PER_IP_DAY, global_day: FREE_GLOBAL_DAY }, used_today: { day: limits.day, global: limits.global } });
+      limits: { per_ip_day: FREE_PER_IP_DAY, per_client_day: FREE_PER_IP_DAY, client_class_day: FREE_CLIENT_CLASS_DAY, global_day: FREE_GLOBAL_DAY },
+      used_today: { day: limits.day, global: limits.global, client_class: limits.clientClass } });
   }
   if (url !== FREE_PATH) return ferr(res, 404, null, -32601, 'Not Found', `The MCP endpoint is POST ${FREE_PUBLIC_URL}`);
   if (req.method === 'OPTIONS') { res.writeHead(204, CORS); return res.end(); }
@@ -310,11 +344,14 @@ const freeServer = http.createServer(async (req, res) => {
       const name = body?.params?.name;
       if (!name) return ferr(res, 400, id, -32602, 'Invalid params', 'params.name is required');
       if (!TOOLS.some((t) => t.name === name)) return ferr(res, 200, id, -32602, 'Unknown tool', `No tool named "${name}"`);
-      const over = takeFreeCall(ip);
+      const over = takeFreeCall(ip, cid);
       if (over) {
         info.limited = over.scope;
         const secs = Math.max(60, Math.ceil((Date.parse(utcDay() + 'T00:00:00Z') + 86400e3 - Date.now()) / 1000));
-        const who = over.scope === 'per-ip' ? `${over.limit} tool calls per IP per day` : `its shared daily cap of ${over.limit} tool calls`;
+        const who = over.scope === 'per-ip' ? `${over.limit} tool calls per IP per day`
+          : over.scope === 'per-client' ? `${over.limit} tool calls per client per day`
+          : over.scope === 'client-class' ? `a shared daily cap of ${over.limit} tool calls for all plugin clients`
+          : `its shared daily cap of ${over.limit} tool calls`;
         return ferr(res, 429, id, -32000,
           `Rate limit reached: this free public tariffmonitor endpoint allows ${who} (resets 00:00 UTC). `
           + `For unlimited use, run the same tools locally with \`npx -y tariffmonitor-mcp\` (${NPM_URL}), `
@@ -324,7 +361,7 @@ const freeServer = http.createServer(async (req, res) => {
       }
       // classify_product with a photo costs 2 of the daily calls (documented in the tool description).
       if (name === 'classify_product' && (body?.params?.arguments?.image_url || body?.params?.arguments?.image_base64)) {
-        const over2 = takeFreeCall(ip);
+        const over2 = takeFreeCall(ip, cid);
         if (over2) {
           info.limited = over2.scope;
           return ferr(res, 429, id, -32000, `Rate limit reached: a photo classification counts as 2 of the ${over2.limit} daily calls on this free public endpoint (resets 00:00 UTC). Send a text description instead, or run the tools locally with \`npx -y tariffmonitor-mcp\` (${NPM_URL}).`,

@@ -55,7 +55,10 @@ const lineDesc = (r) => (Array.isArray(r.description_path) && r.description_path
   ? r.description_path.slice(-3).map((t) => cut(clean(t), 70)).join(' > ') : clean(r.description));
 
 async function apiFetch(path, { read400 = false } = {}) {
-  const res = await fetch(`${API_BASE}${path}`, {
+  // TEM_API_BASE (read per call: http.js loads .env after this module is imported) lets the hosted
+  // server on VM100 call the engine over the LAN, outside the public per-IP /api limiter that every
+  // hosted tool call (free + Voidnet) otherwise shares via one egress IP. npm installs keep the public URL.
+  const res = await fetch(`${process.env.TEM_API_BASE || API_BASE}${path}`, {
     headers: { 'User-Agent': `tariffmonitor-mcp/${VERSION}` },
   });
   if (read400 && res.status === 400) return res.json(); // the API's reason for rejecting the input, not an outage
