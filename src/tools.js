@@ -21,7 +21,7 @@ import { classifyProduct, defaultChat } from './classify.js';
 const API_BASE = 'https://adcreator-ai.com/api/tem';
 const PACK_URL = 'https://scholar.0xpi.com/get/tariffmonitor';
 const CALC_URL = 'https://adcreator-ai.com/tariffs/calculator';
-const VERSION = "1.6.5";
+const VERSION = "1.6.6";
 
 // The Section 301 China product exclusion end date. USTR extended all 178 exclusions on 9 Nov 2026
 // (FR Doc. 2026-22925, filed for public inspection 9 Nov, published 10 Nov 2026, read 2026-11-09):
