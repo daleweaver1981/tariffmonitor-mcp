@@ -41,6 +41,7 @@ const exclusionEndedNote = (asOf) => 'Section 301 China product exclusions: USTR
 const exclusionNote = (d) => (exclusionsEnded(d)
   ? exclusionEndedNote((d && d.as_of) || new Date().toISOString().slice(0, 10)) : EXCLUSION_END_NOTE);
 
+export const _rankLines = (rows, q) => rankLines(rows, q);
 export const SERVER_INFO = { name: 'tariffmonitor', version: VERSION };
 
 // The schedule's descriptions carry inline markup such as <il>10 kg</il>; an agent should see text.
@@ -230,10 +231,17 @@ function rankLines(rows, query) {
     let s = 0;
     // Word-start match: "men" scores "For men" but not "For women".
     for (const w of words) if (new RegExp('(^|[^a-z])' + w.replace(/[^a-z0-9]/g, '')).test(d)) s += 2;
-    if (/^other\b/.test(d)) s -= 1;
     return s;
   };
-  return rows.map((r, i) => ({ r, i, s: score(r) })).sort((a, b) => b.s - a.s || a.i - b.i).map((x) => x.r);
+  // The leaf (this line's own text) decides whether it is the residual "Other" line. When some lines match
+  // the query and others don't, "Other" goes last. When no line's text tells them apart (yoga mat under
+  // 9506.91, earbuds under 8518.30), the product is not one the schedule names, so it falls in the residual
+  // "Other" line: list that first rather than exercise cycles or line telephone handsets.
+  const isOther = (r) => /^other\b/.test(clean(r.description).toLowerCase().trim());
+  const scored = rows.map((r, i) => ({ r, i, s: score(r), o: isOther(r) }));
+  const discriminates = new Set(scored.map((x) => x.s)).size > 1;
+  for (const x of scored) x.s += x.o ? (discriminates ? -1 : 1) : 0;
+  return scored.sort((a, b) => b.s - a.s || a.i - b.i).map((x) => x.r);
 }
 
 // Argument names agents actually send (29 Oct Voidnet logs: "country" instead of "origin_country"). An
