@@ -8,12 +8,12 @@
     "url": "https://github.com/daleweaver1981/tariffmonitor-mcp",
     "source": "github"
   },
-  "version": "1.6.4",
+  "version": "1.6.5",
   "packages": [
     {
       "registryType": "npm",
       "identifier": "tariffmonitor-mcp",
-      "version": "1.6.4",
+      "version": "1.6.5",
       "transport": {
         "type": "stdio"
       }

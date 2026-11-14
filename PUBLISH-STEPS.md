@@ -29,7 +29,7 @@ The registry accepts PRs adding a metadata file. After npm publish:
 **tariffmonitor-mcp** — US import tariff calculator for Claude Desktop and Cursor.
 
 - `lookup_hts_code` — Search 19,856 HTS codes by description
-- `calculate_tariff` — Full stacked rate (MFN + Section 301 + IEEPA + reciprocal) + Nov 10, 2026 cliff projection
+- `calculate_tariff` — Estimated stacked rate (MFN + Section 301, including the 2026 forced-labor layer, + Section 232) and the rate from 10 Jan 2027, when the Section 301 China exclusions end (FR Doc. 2026-22925)
 
 No API key required. Free.
 
