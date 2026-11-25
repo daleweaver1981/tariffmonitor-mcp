@@ -21,7 +21,7 @@ import { classifyProduct, defaultChat } from './classify.js';
 const API_BASE = 'https://adcreator-ai.com/api/tem';
 const PACK_URL = 'https://scholar.0xpi.com/get/tariffmonitor';
 const CALC_URL = 'https://adcreator-ai.com/tariffs/calculator';
-const VERSION = "1.6.6";
+const VERSION = "1.6.7";
 
 // The Section 301 China product exclusion end date. USTR extended all 178 exclusions on 9 Nov 2026
 // (FR Doc. 2026-22925, filed for public inspection 9 Nov, published 10 Nov 2026, read 2026-11-09):
@@ -341,7 +341,7 @@ export async function callTool(name, args = {}) {
         + (ranked.length > 12 ? `\n(${ranked.length - 12} more 10-digit lines under ${alias.heading}; search a longer code prefix to see them)` : '');
       const altBlocks = altData.filter((x) => x.data?.ok && x.data.results?.length).map((x) => {
         const rr = rankLines(x.data.results, query);
-        return `\n\nAlso common for "${alias.term}": HTS ${x.alt.heading}: ${x.alt.label}.\n\n` + rr.slice(0, 6).map((r) => `${r.hts10}  ${lineDesc(r)}`).join('\n')
+        return (alias.ambiguous ? `\n\nCandidate: HTS ${x.alt.heading}: ${x.alt.label}.\n\n` : `\n\nAlso common for "${alias.term}": HTS ${x.alt.heading}: ${x.alt.label}.\n\n`) + rr.slice(0, 6).map((r) => `${r.hts10}  ${lineDesc(r)}`).join('\n')
           + (rr.length > 6 ? `\n(${rr.length - 6} more under ${x.alt.heading})` : '');
       }).join('');
       const aliasCodes = new Set([...aliasData.results, ...altData.flatMap((x) => x.data?.results || [])].map((r) => r.hts10));
@@ -352,11 +352,17 @@ export async function callTool(name, args = {}) {
       const extra = (data.ok ? data.results || [] : [])
         .filter((r) => !aliasCodes.has(r.hts10) && shares(r)).slice(0, 6)
         .map((r) => `${r.hts10}  ${lineDesc(r)}`).join('\n');
-      const text = `"${alias.term}" is normally classified under HTS ${alias.heading}: ${alias.label}${alias.label.endsWith('...') ? '' : '.'} `
-        + 'A plain keyword search of the schedule misses or mislabels this product, so these codes come from that heading.\n\n'
-        + `Codes under ${alias.heading} (ranked by match to your words, then by code):\n\n${rows}${altBlocks}`
-        + (extra ? `\n\nOther codes whose description contains "${found.searched}":\n\n${extra}` : '')
-        + '\n\nClassification depends on the exact material, construction and use; this heading is a starting point, not a ruling. '
+      // 2026-11-24: an ambiguous alias lists its headings as equal candidates, never as a normal classification.
+      const cands = [alias, ...(alias.alts || [])].map((x) => `HTS ${x.heading} (${x.label})`);
+      const text = (alias.ambiguous
+        ? `"${alias.term}" has no single settled heading. The candidates are ${cands.slice(0, -1).join(', ')} or ${cands[cands.length - 1]}. ${alias.ambiguous} `
+          + 'A plain keyword search of the schedule mislabels this product, so these codes come from those headings.\n\n'
+          + `Candidate: HTS ${alias.heading}: ${alias.label}.\n\n${rows}${altBlocks}`
+        : `"${alias.term}" is normally classified under HTS ${alias.heading}: ${alias.label}${alias.label.endsWith('...') ? '' : '.'} `
+          + 'A plain keyword search of the schedule misses or mislabels this product, so these codes come from that heading.\n\n'
+          + `Codes under ${alias.heading} (ranked by match to your words, then by code):\n\n${rows}${altBlocks}`)
+        + (extra && !alias.ambiguous ? `\n\nOther codes whose description contains "${found.searched}":\n\n${extra}` : '')
+        + '\n\nClassification depends on the exact material, construction and use; ' + (alias.ambiguous ? 'these headings are' : 'this heading is') + ' a starting point, not a ruling. '
         + 'Confirm in the official schedule (https://hts.usitc.gov/) or with CBP rulings (https://rulings.cbp.gov/). '
         + 'Then use calculate_tariff or compare_origins with the most relevant code.';
       return { content: [{ type: 'text', text }] };
